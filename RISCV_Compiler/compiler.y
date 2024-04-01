@@ -3,13 +3,21 @@
     #include "compiler_common.h"
     #include "main.h"
     
-    int yydebug = 1;
 
-    void yyerror (char const *s) {
-        printf("error:%d:%d %s\n", yylineno, yyleng, s);
+    int yydebug = 1;
+    char errorCache[128];
+
+    #define ERROR_PREFIX "error:%d:%d: "
+
+    void yyerror(char const *msg) {
+        printf("error:%d:%d: %s\n", yylineno, yycolumn - yyleng, msg);
         compileError = true;
     }
-
+    
+    #define yyerrorf(format, ...) {\
+        printf(ERROR_PREFIX format, yylineno, yycolumn - yyleng, ##__VA_ARGS__);\
+        compileError = true;\
+    }
 %}
 
 /* Variable or self-defined structure */
@@ -73,6 +81,14 @@ StmtList
 Stmt
     : ScopeStmt
     | VARIABLE_T IDENT '(' FunctionVariableStmtList ')' {} ScopeStmt
+    | IDENT VAL_ASSIGN Expression ';' { 
+        Object *value = findVariable($<s_var>1); 
+        if(!value) {
+            yyerrorf("error: variable '%s' not declared\n", $<s_var>1);
+            YYABORT;
+        }
+        objectAssignVal(*value);
+    }
     | ';'
 ;
 
@@ -92,6 +108,8 @@ FunctionVariableStmt
 
 Expression
     : ValueStmt
+    | ValueStmt ADD ValueStmt { objectAdd($<object_val>1, $<object_val>3); }
+    | ValueStmt DIV ValueStmt { objectDiv($<object_val>1, $<object_val>3); }
 ;
 
 ValueStmt
@@ -99,6 +117,14 @@ ValueStmt
     | FLOAT_LIT { $$ = (Object){OBJECT_TYPE_FLOAT, *((uint64_t*)&$<f_var>1)}; printf("FLOAT_LIT %f\n", $<f_var>1); }
     | INT_LIT { $$ = (Object){OBJECT_TYPE_INT, (uint64_t)$<i_var>1}; printf("INT_LIT %d\n", $<i_var>1); }
     | STR_LIT { $$ = (Object){OBJECT_TYPE_STR, (uint64_t)$<s_var>1}; printf("STRING_LIT \"%s\"\n", $<s_var>1); }
+    | IDENT { 
+        Object *value = findVariable($<s_var>1); 
+        if(!value) {
+            yyerrorf("error: variable '%s' not declared\n", $<s_var>1);
+            YYABORT;
+        }
+        $$ = *value;
+    }
 ;
 
 %%

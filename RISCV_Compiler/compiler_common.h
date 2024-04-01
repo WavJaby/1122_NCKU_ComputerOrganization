@@ -24,17 +24,15 @@ typedef enum _objectType {
 
 typedef struct _symbolData {
     uint32_t index;
-    const char* name;
-    int8_t mutable;
+    char* name;
     uint64_t addr;
-    uint32_t lineno;
-    const char* func_sig;
-    uint8_t func_var;
+    bool write;
 } SymbolData;
 
 typedef struct Object {
     ObjectType type;
     uint64_t value;
+    SymbolData* symbolData;
 } Object;
 
 #endif /* COMPILER_COMMON_H */

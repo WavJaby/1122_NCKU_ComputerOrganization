@@ -29,7 +29,7 @@ main.c:
 
 compile:
 	$(info ########## Compile script ##########)
-	./${BUILD}/${COMPILER} test.c test
+	./${BUILD}/${COMPILER} test.c result
 
 clean:
 	rm -f ${BUILD}/${COMPILER} ${BUILD}/y.tab.* ${BUILD}/y.output ${BUILD}/lex.*

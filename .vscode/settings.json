@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "type_traits": "c",
+        "test.h": "c",
+        "compiler_common.h": "c"
+    }
+}
