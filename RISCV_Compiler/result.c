@@ -16,10 +16,9 @@ int main()
             for (f = 0; f < 3; f++)
                 asm volatile(
 //########## Generate by RISC-V compiler ##########
-"addi %[p_x], %[p_x], 4\n\t"
-"addi %[p_x], %[p_x], -4\n\t"
+"mv 0(%[p_x]), t\n\t"
 : [p_x] "+r"(p_x)
-: [p_h] "r"(p_h), [p_y] "r"(p_y)
+: [p_h] "r"(p_h), [f] "r"(f), [p_y] "r"(p_y), [i] "r"(i), [j] "r"(j)
 //##########     Compiler by WavJaby     ##########
 );
 	}

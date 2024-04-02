@@ -6,10 +6,13 @@
 
 #define RISCV_PREFIX "//########## Generate by RISC-V compiler ##########"
 #define RISCV_SUBFIX "//##########     Compiler by WavJaby     ##########"
-#define debugPrintInst(inst, instc, a, b) printf("%s: %s%s %s %s%s\n", inst, (a)->value ? "*" : "", (a)->symbol->name, instc, (b)->value ? "*" : "", (b)->symbol->name);
-
-#define objectSize(obj) ((obj)->symbol->pointer && !((obj)->value & VAR_FLAG_PTR) /*Is pointer*/ \
-                             ? objectTypeSize[(obj)->type]                                       \
+#define pointerPrefix(obj) (obj)->symbol->pointer && (obj)->value& VAR_FLAG_PTR ? "*" : ""
+#define debugPrintInst(inst, instc, a, b) printf("%s: %s%s %s %s%s\n", inst,                 \
+                                                 pointerPrefix(a), (a)->symbol->name, instc, \
+                                                 pointerPrefix(b), (b)->symbol->name);
+#define toInt(val) (*(int*)&val)
+#define objectSize(obj) ((obj)->symbol->pointer && !((obj)->value & VAR_FLAG_PTR) /* Is pointer && get pointer value */ \
+                             ? objectTypeSize[(obj)->type]                                                              \
                              : 1)
 
 uint8_t objectTypeSize[] = {
@@ -52,10 +55,10 @@ bool objectEquals(void* a, void* b) {
     if (objA->type != objA->type)
         return false;
     switch (objA->type) {
-        case OBJECT_TYPE_STR:
-            return strcmp((const char*)objA->value, (const char*)objA->value) == 0;
-        default:
-            return objA->value == objB->value;
+    case OBJECT_TYPE_STR:
+        return strcmp((const char*)objA->value, (const char*)objA->value) == 0;
+    default:
+        return objA->value == objB->value;
     }
 }
 uint32_t objectHash(void* key) {
@@ -111,109 +114,135 @@ bool objectIncreaseAssignNum(Object* a, int num) {
         return true;
 
     a->symbol->write = true;
-    printf("Increase variable '%s%s' by %d\n", a->symbol->pointer ? "*" : "", a->symbol->name, num);
+    printf("Increase variable '%s%s' by %d\n", pointerPrefix(a), a->symbol->name, num);
 
-    if (a->value & VAR_FLAG_PTR)
+    if (a->symbol->pointer && a->value & VAR_FLAG_PTR)  // Is pointer && get pointer value
         fprintf(tempOut, code("addi 0(%%[%s]), 0(%%[%s]), %d"), a->symbol->name, a->symbol->name, num);
     else
         fprintf(tempOut, code("addi %%[%s], %%[%s], %d"), a->symbol->name, a->symbol->name, num);
     return false;
 }
 
+// ++
 bool objectIncreaseAssign(Object* a) {
     objectIncreaseAssignNum(a, objectSize(a));
 }
 
+// --
 bool objectDecreaseAssign(Object* a) {
     objectIncreaseAssignNum(a, -objectSize(a));
 }
 
-bool objectValueAssign(Object* a) {
-    if (!a->symbol)
+// =
+bool objectValueAssign(Object* dest, Object* value) {
+    if (!dest->symbol)
         return true;
 
-    a->symbol->write = true;
-    printf("Assign variable: %s%s\n", a->value ? "*" : "", a->symbol->name);
-    if (a->value & VAR_FLAG_PTR)
-        fprintf(tempOut, code("sw t0, 0(%%[%s])"), a->symbol->name);
-    else
-        fprintf(tempOut, code("sw t0, %%[%s]"), a->symbol->name);
+    dest->symbol->write = true;
+    // Assign variable
+    if (value->symbol) {
+        // From register
+        if (value->value & VAR_FLAG_REG) {
+            fprintf(tempOut, dest->value & VAR_FLAG_PTR  // Get pointer value
+                                 ? code("mv 0(%%[%s]), t0")
+                                 : code("mv %%[%s], t0"),
+                    dest->symbol->name, dest->symbol->name);
+        } else {
+            fprintf(tempOut, dest->value & VAR_FLAG_PTR  // Get pointer value
+                                 ? code("mv 0(%%[%s]), t")
+                                 : code("mv %%[%s], t"),
+                    dest->symbol->name);
+        }
 
-    if (a->value & VAR_FLAG_INC_ASSIGN)
-        objectIncreaseAssign(a);
+        printf("%s%s = %s%s\n", pointerPrefix(dest), dest->symbol->name, pointerPrefix(value), value->symbol->name);
+        if (dest->value & VAR_FLAG_INC_ASSIGN)
+            objectIncreaseAssign(dest);
+        return false;
+    }
+
+    // Assign value
+    switch (value->type) {
+    case OBJECT_TYPE_INT:
+        printf("%s%s = %d\n", pointerPrefix(dest), dest->symbol->name, toInt(value->value));
+        fprintf(tempOut, dest->value & VAR_FLAG_PTR  // Get pointer value
+                             ? code("lui 0(%%[%s]), %d")
+                             : code("lui %%[%s], %d"),
+                dest->symbol->name, toInt(value->value));
+        break;
+    default:
+        return false;
+    }
     return false;
 }
 
+bool objectAssign(Object* dest, Object* val, bool sub) {
+    dest->symbol->write = true;
+    if (dest->type != val->type)
+        return false;
+
+    // Variable value
+    if (val->symbol)
+        return false;
+
+    // Normal value
+    switch (dest->type) {
+    case OBJECT_TYPE_INT:
+        if (sub)
+            objectIncreaseAssignNum(dest, -objectSize(dest) * toInt(val->value));
+        else
+            objectIncreaseAssignNum(dest, objectSize(dest) * toInt(val->value));
+        break;
+    default:
+        return false;
+    }
+    return false;
+}
+
+// +=
 bool objectAddAssign(Object* dest, Object* val) {
     if (!dest->symbol)
         return true;
 
-    dest->symbol->write = true;
-    if (dest->type != val->type)
-        return false;
-
-    // Variable value
-    if (val->symbol)
-        return false;
-
-    // Normal value
-    switch (dest->type) {
-        case OBJECT_TYPE_INT:
-            objectIncreaseAssignNum(dest, objectSize(dest) * (*(int*)&val->value));
-            break;
-        default:
-            return false;
-    }
-    return false;
+    return objectAssign(dest, val, false);
 }
 
+// -=
 bool objectSubAssign(Object* dest, Object* val) {
     if (!dest->symbol)
         return true;
 
-    dest->symbol->write = true;
-    if (dest->type != val->type)
-        return false;
-
-    // Variable value
-    if (val->symbol)
-        return false;
-
-    // Normal value
-    switch (dest->type) {
-        case OBJECT_TYPE_INT:
-            objectIncreaseAssignNum(dest, -objectSize(dest) * (*(int*)&val->value));
-            break;
-        default:
-            return false;
-    }
-    return false;
+    return objectAssign(dest, val, true);
 }
 
-void instruction3(const char* inst, Object* a, uint64_t aFlag, Object* b, uint64_t bFlag) {
+void instruction3(const char* inst, Object* a, uint64_t aFlag, Object* b, uint64_t bFlag, Object* out) {
+    // Two variable add
     if (!aFlag && !bFlag)
         fprintf(tempOut, code("%s t0, %%[%s], %%[%s]"), inst, a->symbol->name, b->symbol->name);
     else {
         if (aFlag) {
-            if (aFlag & VAR_FLAG_PTR)
+            if (aFlag & VAR_FLAG_PTR)  // Store variable pointer value to t1
                 fprintf(tempOut, code("lw t1, 0(%%[%s])"), a->symbol->name);
-            else
+            else if (aFlag & ~VAR_FLAG_REG)  // Store variable value to t1
                 fprintf(tempOut, code("lw t1, %%[%s]"), a->symbol->name);
         }
+        // a++;
         if (aFlag & VAR_FLAG_INC_ASSIGN)
             objectIncreaseAssign(a);
 
         if (bFlag) {
-            if (bFlag & VAR_FLAG_PTR)
+            if (bFlag & VAR_FLAG_PTR)  // Store variable pointer value to t2
                 fprintf(tempOut, code("lw t2, 0(%%[%s])"), b->symbol->name);
-            else
+            else if (bFlag & ~VAR_FLAG_REG)  // Store variable value to t2
                 fprintf(tempOut, code("lw t2, %%[%s]"), b->symbol->name);
         }
+        // b++;
         if (bFlag & VAR_FLAG_INC_ASSIGN)
             objectIncreaseAssign(b);
 
         if (aFlag && bFlag)
-            fprintf(tempOut, code("%s t0, t1, t2"), inst);
+            fprintf(tempOut, code("%s t0, %s, %s"), inst,
+                    (aFlag & VAR_FLAG_REG) ? a->symbol->name : "t1",
+                    (bFlag & VAR_FLAG_REG) ? b->symbol->name : "t2");
         else if (aFlag)
             fprintf(tempOut, code("%s t0, t1, %%[%s]"), inst, b->symbol->name);
         else
@@ -221,19 +250,46 @@ void instruction3(const char* inst, Object* a, uint64_t aFlag, Object* b, uint64
     }
 }
 
-bool objectAdd(Object* a, Object* b) {
-    if (!a->symbol || !b->symbol)
-        return true;
-    debugPrintInst("Add", "+", a, b);
-    instruction3("add", a, a->value, b, b->value);
+bool objectAdd(Object* a, Object* b, Object* out) {
+    // Two value add
+    if (!a->symbol && !b->symbol)
+        switch (a->type) {
+        case OBJECT_TYPE_INT:
+            switch (b->type) {
+            case OBJECT_TYPE_INT:
+                out->type = OBJECT_TYPE_INT;
+                out->value = toInt(a->value) + toInt(b->value);
+                out->symbol = NULL;
+                printf("%d + %d = %d\n", toInt(a->value), toInt(b->value), toInt(out->value));
+                return false;
+            default:
+                return true;
+            }
+            break;
+        default:
+            return true;
+        }
+
+    // Two variable add
+    if (a->symbol && b->symbol) {
+        debugPrintInst("Add", "+", a, b);
+        SymbolData* symbol = malloc(sizeof(SymbolData));  // TODO: Need free
+        symbol->name = "t0";
+        out->type = OBJECT_TYPE_INT;
+        out->value = VAR_FLAG_REG;
+        out->symbol = symbol;
+        instruction3("add", a, a->value, b, b->value, out);
+        return false;
+    }
+
     return false;
 }
 
-bool objectDiv(Object* a, Object* b) {
+bool objectDiv(Object* a, Object* b, Object* out) {
     if (!a->symbol || !b->symbol)
         return true;
     debugPrintInst("Div", "/", a, b);
-    instruction3("div", a, a->value, b, b->value);
+    instruction3("div", a, a->value, b, b->value, out);
     return false;
 }
 

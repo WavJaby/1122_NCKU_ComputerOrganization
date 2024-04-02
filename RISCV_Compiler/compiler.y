@@ -56,7 +56,7 @@
 %token <s_var> IDENT
 
 /* Nonterminal with return, which need to sepcify type */
-%type <object_val> Expression
+%type <object_val> ExpressionListStmt
 %type <object_val> ValueStmt
 %type <object_val> IdentExpStmt
 %type <object_val> IdentStmt
@@ -93,19 +93,24 @@ Stmt
     : ScopeStmt
     | ';'
     | VARIABLE_T IDENT '(' FunctionVariableStmtList ')' {} ScopeStmt
-    | IdentExpStmt VAL_ASSIGN Expression ';' { 
-        if(objectValueAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
+    // =
+    | IdentExpStmt VAL_ASSIGN ExpressionListStmt ';' { 
+        if(objectValueAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
     }
+    // i++
     | IdentStmt INC_ASSIGN ';' {
         if(objectIncreaseAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
-    } // i++
+    }
+    // i--
     | IdentStmt DEC_ASSIGN ';' {
         if(objectDecreaseAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
-    } // i--
-    | IdentExpStmt ADD_ASSIGN Expression ';' { 
+    }
+    // +=
+    | IdentExpStmt ADD_ASSIGN ExpressionListStmt ';' {
         if(objectAddAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' can not add assign\n", $<object_val>1.symbol->name);
     }
-    | IdentExpStmt SUB_ASSIGN Expression ';' { 
+    // -=
+    | IdentExpStmt SUB_ASSIGN ExpressionListStmt ';' {
         if(objectSubAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' can not sub assign\n", $<object_val>1.symbol->name);
     }
 ;
@@ -125,17 +130,17 @@ FunctionVariableStmt
     | VARIABLE_T MUL IDENT { pushFunVar($<var_type>1, $<s_var>3, true); } // Pointer
 ;
 
-Expression
-    : ValueStmt
-    | ValueStmt ADD ValueStmt { if(objectAdd(&$<object_val>1, &$<object_val>3)) YYABORT; }
-    | ValueStmt DIV ValueStmt { if(objectDiv(&$<object_val>1, &$<object_val>3)) YYABORT; }
+ExpressionListStmt
+    : ExpressionListStmt ADD ValueStmt { if(objectAdd(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    | ExpressionListStmt DIV ValueStmt { if(objectDiv(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    | ValueStmt
 ;
 
 ValueStmt
-    : BOOL_LIT { $$ = (Object){OBJECT_TYPE_BOOL, (*(uint8_t*)&$<b_var>1)}; }
-    | FLOAT_LIT { $$ = (Object){OBJECT_TYPE_FLOAT, (*(uint32_t*)&$<f_var>1)}; }
-    | INT_LIT { $$ = (Object){OBJECT_TYPE_INT, (*(uint32_t*)&$<i_var>1)}; }
-    | STR_LIT { $$ = (Object){OBJECT_TYPE_STR, (*(uint64_t*)&$<s_var>1)}; }
+    : BOOL_LIT { $$ = (Object){OBJECT_TYPE_BOOL, (*(uint8_t*)&$<b_var>1), NULL}; }
+    | FLOAT_LIT { $$ = (Object){OBJECT_TYPE_FLOAT, (*(uint32_t*)&$<f_var>1), NULL}; }
+    | INT_LIT { $$ = (Object){OBJECT_TYPE_INT, (*(uint32_t*)&$<i_var>1), NULL}; }
+    | STR_LIT { $$ = (Object){OBJECT_TYPE_STR, (*(uint64_t*)&$<s_var>1), NULL}; }
     | IdentExpStmt
 ;
 
