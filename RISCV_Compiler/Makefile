@@ -22,7 +22,7 @@ lex.yy.c: ${LEX_SRC} ${HEADER}
 	lex -o ${BUILD}/lex.yy.c $<
 
 y.tab.c: ${YAC_SRC} ${HEADER}
-	yacc ${YFLAG} -o ${BUILD}/y.tab.c $<
+	yacc ${YFLAG} -v -o ${BUILD}/y.tab.c $<
 
 main.c:
 	gcc -g -c main.c -o ${BUILD}/main.o
@@ -32,4 +32,4 @@ compile:
 	./${BUILD}/${COMPILER} test.c result
 
 clean:
-	rm -f ${BUILD}/${COMPILER} ${BUILD}/y.tab.* ${BUILD}/y.output ${BUILD}/lex.*
+	rm -r ${BUILD}

@@ -36,7 +36,7 @@
     float f_var;
     char *s_var;
 
-    Object* object_val;
+    Object object_val;
 }
 
 /* Token without return */
@@ -61,12 +61,14 @@
 %type <object_val> IdentExpStmt
 %type <object_val> IdentStmt
 
+%left VAL_ASSIGN ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN REM_ASSIGN SHR_ASSIGN SHL_ASSIGN BAN_ASSIGN BOR_ASSIGN
 %left LOR
 %left LAN
 %left GTR LES EQL NEQ LEQ GEQ
 %left LSHIFT RSHIFT
 %left ADD SUB
 %left MUL DIV MOD
+%left INC_ASSIGN DEC_ASSIGN 
 
 /* %nonassoc IFX
 %nonassoc ELSE */
@@ -92,9 +94,20 @@ Stmt
     | ';'
     | VARIABLE_T IDENT '(' FunctionVariableStmtList ')' {} ScopeStmt
     | IdentExpStmt VAL_ASSIGN Expression ';' { 
-        if(objectAssignVal($<object_val>1)) yyerrorf("'%s' is not variable\n", ($<object_val>1)->symbol->name);
+        if(objectValueAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
     }
-    | IdentExpStmt INC_ASSIGN ';' {} // i++
+    | IdentStmt INC_ASSIGN ';' {
+        if(objectIncreaseAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
+    } // i++
+    | IdentStmt DEC_ASSIGN ';' {
+        if(objectDecreaseAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
+    } // i--
+    | IdentExpStmt ADD_ASSIGN Expression ';' { 
+        if(objectAddAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' can not add assign\n", $<object_val>1.symbol->name);
+    }
+    | IdentExpStmt SUB_ASSIGN Expression ';' { 
+        if(objectSubAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' can not sub assign\n", $<object_val>1.symbol->name);
+    }
 ;
 
 ScopeStmt
@@ -114,37 +127,34 @@ FunctionVariableStmt
 
 Expression
     : ValueStmt
-    | ValueStmt ADD ValueStmt { if(objectAdd($<object_val>1, $<object_val>3)) YYABORT; }
-    | ValueStmt DIV ValueStmt { 
-        printf("%p\n", &$<object_val>3->value); if(objectDiv($<object_val>1, $<object_val>3)) YYABORT; }
+    | ValueStmt ADD ValueStmt { if(objectAdd(&$<object_val>1, &$<object_val>3)) YYABORT; }
+    | ValueStmt DIV ValueStmt { if(objectDiv(&$<object_val>1, &$<object_val>3)) YYABORT; }
 ;
 
 ValueStmt
-    : BOOL_LIT { $$ = &(Object){OBJECT_TYPE_BOOL, (uint64_t)$<b_var>1}; printf("bool %s\n", $<b_var>1?"true":"false"); }
-    | FLOAT_LIT { $$ = &(Object){OBJECT_TYPE_FLOAT, *((uint64_t*)&$<f_var>1)}; printf("FLOAT_LIT %f\n", $<f_var>1); }
-    | INT_LIT { $$ = &(Object){OBJECT_TYPE_INT, (uint64_t)$<i_var>1}; printf("INT_LIT %d\n", $<i_var>1); }
-    | STR_LIT { $$ = &(Object){OBJECT_TYPE_STR, (uint64_t)$<s_var>1}; printf("STRING_LIT \"%s\"\n", $<s_var>1); }
+    : BOOL_LIT { $$ = (Object){OBJECT_TYPE_BOOL, (*(uint8_t*)&$<b_var>1)}; }
+    | FLOAT_LIT { $$ = (Object){OBJECT_TYPE_FLOAT, (*(uint32_t*)&$<f_var>1)}; }
+    | INT_LIT { $$ = (Object){OBJECT_TYPE_INT, (*(uint32_t*)&$<i_var>1)}; }
+    | STR_LIT { $$ = (Object){OBJECT_TYPE_STR, (*(uint64_t*)&$<s_var>1)}; }
     | IdentExpStmt
 ;
 
-// shift/reduce
 IdentExpStmt
     : IdentStmt
     | IdentStmt INC_ASSIGN {
-        ($<object_val>1)->value = VAR_FLAG_INC_ASSIGN;
-        printf("%p\n", &$<object_val>1->value);
+        $$ = $<object_val>1;
+        $$.value |= VAR_FLAG_INC_ASSIGN;
     }
 ;
 
 IdentStmt
     : IDENT {
         Object *obj = checkVariableDef($<s_var>1);
-        $$ = obj;
+        $$ = *obj;
     }
     | MUL IDENT {
         Object *obj = checkVariableDef($<s_var>2);
-        $$ = &(Object){obj->type, VAR_FLAG_PTR, obj->symbol};
-        printf("%p\n", &$$->value);
+        $$ = (Object){obj->type, VAR_FLAG_PTR, obj->symbol};
     }
 ;
 

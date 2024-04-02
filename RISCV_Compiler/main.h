@@ -18,6 +18,10 @@ void pushFunVar(ObjectType variableType, const char* variableName, bool ptr);
 Object* findVariable(const char* variableName);
 bool objectAdd(Object* a, Object* b);
 bool objectDiv(Object* a, Object* b);
-bool objectAssignVal(Object* a);
+bool objectIncreaseAssign(Object* a);
+bool objectDecreaseAssign(Object* a);
+bool objectValueAssign(Object* a);
+bool objectAddAssign(Object* dest, Object* val);
+bool objectSubAssign(Object* dest, Object* val);
 
 #endif
