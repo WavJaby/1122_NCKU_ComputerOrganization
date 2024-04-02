@@ -2,21 +2,28 @@
 %{
     #include "compiler_common.h"
     #include "main.h"
-    
 
     int yydebug = 1;
+    
+    char* yyInputFileName;
+    uint32_t yycolumn;
+    extern int yyleng;
+    
+    bool compileError;
     char errorCache[128];
 
-    #define ERROR_PREFIX "error:%d:%d: "
+    #define ERROR_PREFIX "%s:%d:%d: error: "
+    #define checkVariableDef(varName) findVariable(varName);if(!obj) yyerrorf("variable '%s' not declared\n", varName);
 
     void yyerror(char const *msg) {
-        printf("error:%d:%d: %s\n", yylineno, yycolumn - yyleng, msg);
+        printf(ERROR_PREFIX " %s\n", yyInputFileName, yylineno, yycolumn - yyleng + 1, msg);
         compileError = true;
     }
     
     #define yyerrorf(format, ...) {\
-        printf(ERROR_PREFIX format, yylineno, yycolumn - yyleng, ##__VA_ARGS__);\
+        printf(ERROR_PREFIX format, yyInputFileName, yylineno, yycolumn - yyleng + 1, ##__VA_ARGS__);\
         compileError = true;\
+        YYABORT;\
     }
 %}
 
@@ -29,7 +36,7 @@
     float f_var;
     char *s_var;
 
-    Object object_val;
+    Object* object_val;
 }
 
 /* Token without return */
@@ -51,6 +58,8 @@
 /* Nonterminal with return, which need to sepcify type */
 %type <object_val> Expression
 %type <object_val> ValueStmt
+%type <object_val> IdentExpStmt
+%type <object_val> IdentStmt
 
 %left LOR
 %left LAN
@@ -80,16 +89,12 @@ StmtList
 
 Stmt
     : ScopeStmt
-    | VARIABLE_T IDENT '(' FunctionVariableStmtList ')' {} ScopeStmt
-    | IDENT VAL_ASSIGN Expression ';' { 
-        Object *value = findVariable($<s_var>1); 
-        if(!value) {
-            yyerrorf("error: variable '%s' not declared\n", $<s_var>1);
-            YYABORT;
-        }
-        objectAssignVal(*value);
-    }
     | ';'
+    | VARIABLE_T IDENT '(' FunctionVariableStmtList ')' {} ScopeStmt
+    | IdentExpStmt VAL_ASSIGN Expression ';' { 
+        if(objectAssignVal($<object_val>1)) yyerrorf("'%s' is not variable\n", ($<object_val>1)->symbol->name);
+    }
+    | IdentExpStmt INC_ASSIGN ';' {} // i++
 ;
 
 ScopeStmt
@@ -103,27 +108,43 @@ FunctionVariableStmtList
     |
 ;
 FunctionVariableStmt
-    : VARIABLE_T IDENT { pushFunVar($<var_type>1, $<s_var>2); }
+    : VARIABLE_T IDENT { pushFunVar($<var_type>1, $<s_var>2, false); }
+    | VARIABLE_T MUL IDENT { pushFunVar($<var_type>1, $<s_var>3, true); } // Pointer
 ;
 
 Expression
     : ValueStmt
-    | ValueStmt ADD ValueStmt { objectAdd($<object_val>1, $<object_val>3); }
-    | ValueStmt DIV ValueStmt { objectDiv($<object_val>1, $<object_val>3); }
+    | ValueStmt ADD ValueStmt { if(objectAdd($<object_val>1, $<object_val>3)) YYABORT; }
+    | ValueStmt DIV ValueStmt { 
+        printf("%p\n", &$<object_val>3->value); if(objectDiv($<object_val>1, $<object_val>3)) YYABORT; }
 ;
 
 ValueStmt
-    : BOOL_LIT { $$ = (Object){OBJECT_TYPE_BOOL, (uint64_t)$<b_var>1}; printf("bool %s\n", $<b_var>1?"true":"false"); }
-    | FLOAT_LIT { $$ = (Object){OBJECT_TYPE_FLOAT, *((uint64_t*)&$<f_var>1)}; printf("FLOAT_LIT %f\n", $<f_var>1); }
-    | INT_LIT { $$ = (Object){OBJECT_TYPE_INT, (uint64_t)$<i_var>1}; printf("INT_LIT %d\n", $<i_var>1); }
-    | STR_LIT { $$ = (Object){OBJECT_TYPE_STR, (uint64_t)$<s_var>1}; printf("STRING_LIT \"%s\"\n", $<s_var>1); }
-    | IDENT { 
-        Object *value = findVariable($<s_var>1); 
-        if(!value) {
-            yyerrorf("error: variable '%s' not declared\n", $<s_var>1);
-            YYABORT;
-        }
-        $$ = *value;
+    : BOOL_LIT { $$ = &(Object){OBJECT_TYPE_BOOL, (uint64_t)$<b_var>1}; printf("bool %s\n", $<b_var>1?"true":"false"); }
+    | FLOAT_LIT { $$ = &(Object){OBJECT_TYPE_FLOAT, *((uint64_t*)&$<f_var>1)}; printf("FLOAT_LIT %f\n", $<f_var>1); }
+    | INT_LIT { $$ = &(Object){OBJECT_TYPE_INT, (uint64_t)$<i_var>1}; printf("INT_LIT %d\n", $<i_var>1); }
+    | STR_LIT { $$ = &(Object){OBJECT_TYPE_STR, (uint64_t)$<s_var>1}; printf("STRING_LIT \"%s\"\n", $<s_var>1); }
+    | IdentExpStmt
+;
+
+// shift/reduce
+IdentExpStmt
+    : IdentStmt
+    | IdentStmt INC_ASSIGN {
+        ($<object_val>1)->value = VAR_FLAG_INC_ASSIGN;
+        printf("%p\n", &$<object_val>1->value);
+    }
+;
+
+IdentStmt
+    : IDENT {
+        Object *obj = checkVariableDef($<s_var>1);
+        $$ = obj;
+    }
+    | MUL IDENT {
+        Object *obj = checkVariableDef($<s_var>2);
+        $$ = &(Object){obj->type, VAR_FLAG_PTR, obj->symbol};
+        printf("%p\n", &$$->value);
     }
 ;
 

@@ -1,20 +1,36 @@
 #include <stdio.h>
-int main(){
-	int a, b;
-	FILE *input = fopen("../input/1.txt", "r");
-	fscanf(input, "%d %d", &a, &b);
-	fclose(input);
-	//a = a / b;
-	asm volatile(
+int main ()
+{
+    int a[10] = {0}, b[10]= {0}, c[10] = {0}; 
+    int i, arr_size = 10;
+    FILE *input = fopen("../input/2.txt", "r");
+    for(i = 0; i < arr_size; i++) fscanf(input, "%d", &a[i]);
+    for(i = 0; i < arr_size; i++) fscanf(input, "%d", &b[i]);
+    for(i = 0; i < arr_size; i++) fscanf(input, "%d", &c[i]);
+    fclose(input);
+    int *p_a = &a[0];
+    int *p_b = &b[0];
+    int *p_c = &c[0];
+    /* Original C code segment
+    for (int i = 0; i < arr_size; i++){
+    *p_c++ = *p_a++ / *p_b++;
+    }
+    */
+    for (int i = 0; i < arr_size; i++)
+    asm volatile(
 //########## Generate by RISC-V compiler ##########
-"div t0, %[a], %[b]\n\t"
-"MV %[a], t0\n\t"
-:[a] "+r"(a)
-:[b] "r"(b)
+"lw t1, 0(%[p_b])\n\t"
+"lw t2, 0(%[p_b])\n\t"
+"div t0, t1, t2\n\t"
+"MV %[p_b], t0\n\t"
+:[p_c] "r"(p_c)
+:[p_a] "r"(p_a)
+:[p_b] "+r"(p_b)
 //##########     Compiler by WavJaby     ##########
 );
-	printf("%d\n", a);
-	return 0;
+    p_c = &c[0];
+    for (int i = 0; i < arr_size; i++)
+    printf("%d ", *p_c++);
+    printf("\n");
+    return 0;
 }
-
-

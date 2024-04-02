@@ -2,20 +2,22 @@
 #define MAIN_H
 #include "compiler_common.h"
 
-FILE* yyin;
+#define VAR_FLAG_PTR 0b00000001
+#define VAR_FLAG_INC_ASSIGN 0b00000010
+#define code(code) "\"" code "\\n\\t\"\n"
+
+extern FILE* yyin;
+extern uint32_t yylineno;
+extern bool compileError;
+extern char* yyInputFileName;
 int yyparse();
 int yylex();
 int yylex_destroy();
-uint32_t yylineno;
-uint32_t yycolumn;
-uint32_t yyleng;
 
-bool compileError;
-
-void pushFunVar(ObjectType variableType, const char* variableName);
+void pushFunVar(ObjectType variableType, const char* variableName, bool ptr);
 Object* findVariable(const char* variableName);
-void objectAdd(Object a, Object b);
-void objectDiv(Object a, Object b);
-void objectAssignVal(Object a);
+bool objectAdd(Object* a, Object* b);
+bool objectDiv(Object* a, Object* b);
+bool objectAssignVal(Object* a);
 
 #endif

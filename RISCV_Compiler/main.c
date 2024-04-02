@@ -6,7 +6,7 @@
 
 #define RISCV_PREFIX "//########## Generate by RISC-V compiler ##########"
 #define RISCV_SUBFIX "//##########     Compiler by WavJaby     ##########"
-#define code(code) "\"" code "\\n\\t\"\n"
+#define debugPrintInst(inst, instc, a, b) printf("%s: %s%s %s %s%s\n", inst, (a)->value ? "*" : "", (a)->symbol->name, instc, (b)->value ? "*" : "", (b)->symbol->name);
 
 FILE *tempOut, *outFile;
 
@@ -33,10 +33,10 @@ bool objectEquals(void* a, void* b) {
     if (objA->type != objA->type)
         return false;
     switch (objA->type) {
-        case OBJECT_TYPE_STR:
-            return strcmp((const char*)objA->value, (const char*)objA->value) == 0;
-        default:
-            return objA->value == objB->value;
+    case OBJECT_TYPE_STR:
+        return strcmp((const char*)objA->value, (const char*)objA->value) == 0;
+    default:
+        return objA->value == objB->value;
     }
 }
 uint32_t objectHash(void* key) {
@@ -51,9 +51,9 @@ void objectFree(void* key, void* value) {
     Object* obj = (Object*)value;
     if (obj->type == OBJECT_TYPE_STR)
         free((char*)obj->value);
-    if (obj->symbolData) {
-        free(obj->symbolData->name);
-        free(obj->symbolData);
+    if (obj->symbol) {
+        free(obj->symbol->name);
+        free(obj->symbol);
     }
 }
 
@@ -65,13 +65,16 @@ NodeInfo funVarInfo = {
 };
 Map funVar;
 
-void pushFunVar(ObjectType variableType, const char* variableName) {
+void pushFunVar(ObjectType variableType, const char* variableName, bool ptr) {
     Object* obj = malloc(sizeof(Object));
-    SymbolData* symbolData = obj->symbolData = malloc(sizeof(SymbolData));
-    symbolData->index = 0;
-    symbolData->name = (char*)variableName;
-    symbolData->addr = 0;
-    symbolData->write = false;
+    obj->type = variableType;
+    obj->value = !ptr;
+    SymbolData* symbol = obj->symbol = malloc(sizeof(SymbolData));
+    symbol->index = 0;
+    symbol->name = (char*)variableName;
+    symbol->addr = 0;
+    symbol->pointer = ptr;
+    symbol->write = false;
     printf("Function variable(%lu): %s\n", funVar.size, variableName);
     map_putpp(&funVar, (void*)variableName, obj);
 }
@@ -79,41 +82,67 @@ void pushFunVar(ObjectType variableType, const char* variableName) {
 Object* findVariable(const char* variableName) {
     Object* value = (Object*)map_get(&funVar, (void*)variableName);
     printf("Find variable: %s\n", variableName);
+    if (!value->symbol)
+        return NULL;
     return value;
 }
 
-void objectAdd(Object a, Object b) {
-    if (a.symbolData && b.symbolData) {
-        printf("Add object: %s + %s\n", a.symbolData->name, b.symbolData->name);
-        fprintf(tempOut, code("add t0, %%[%s], %%[%s]"), a.symbolData->name, b.symbolData->name);
-    } else {
-        printf("Add object failed\n");
+void instruction3(const char* inst, Object* a, uint64_t aPtr, Object* b, uint64_t bPtr) {
+    if (!aPtr && !bPtr)
+        fprintf(tempOut, code("%s t0, %%[%s], %%[%s]"), inst, a->symbol->name, b->symbol->name);
+    else {
+        if (aPtr)
+            fprintf(tempOut, code("lw t1, 0(%%[%s])"), a->symbol->name);
+        if (aPtr & VAR_FLAG_INC_ASSIGN) {
+            printf("Increase variable: %s%s\n", a->symbol->pointer ? "*" : "", a->symbol->name);
+            fprintf(tempOut, code("addi %%[%s], %%[%s], 4"), a->symbol->name, a->symbol->name);
+        }
+        if (bPtr)
+            fprintf(tempOut, code("lw t2, 0(%%[%s])"), b->symbol->name);
+        if (bPtr & VAR_FLAG_INC_ASSIGN) {
+            printf("Increase variable: %s%s\n", b->symbol->pointer ? "*" : "", b->symbol->name);
+            fprintf(tempOut, code("addi %%[%s], %%[%s], 4"), b->symbol->name, b->symbol->name);
+        }
+
+        if (aPtr && bPtr)
+            fprintf(tempOut, code("%s t0, t1, t2"), inst);
+        else if (aPtr)
+            fprintf(tempOut, code("%s t0, t1, %%[%s]"), inst, b->symbol->name);
+        else
+            fprintf(tempOut, code("%s t0, %%[%s], t2"), inst, a->symbol->name);
     }
 }
 
-void objectDiv(Object a, Object b) {
-    if (a.symbolData && b.symbolData) {
-        printf("Div object: %s + %s\n", a.symbolData->name, b.symbolData->name);
-        fprintf(tempOut, code("div t0, %%[%s], %%[%s]"), a.symbolData->name, b.symbolData->name);
-    } else {
-        printf("Div object failed\n");
-    }
+bool objectAdd(Object* a, Object* b) {
+    if (!a->symbol || !b->symbol)
+        return true;
+    debugPrintInst("Add", "+", a, b);
+    instruction3("add", a, a->value, b, b->value);
+    return false;
 }
 
-void objectAssignVal(Object a) {
-    if (a.symbolData) {
-        a.symbolData->write = true;
-        printf("Assign object: %s\n", a.symbolData->name);
-        fprintf(tempOut, code("MV %%[%s], t0"), a.symbolData->name);
-    } else {
-        printf("Assign object failed\n");
-    }
+bool objectDiv(Object* a, Object* b) {
+    if (!a->symbol || !b->symbol)
+        return true;
+    debugPrintInst("Div", "/", a, b);
+    printf("%d\n", a->value);
+    instruction3("div", a, a->value, b, b->value);
+    return false;
+}
+
+bool objectAssignVal(Object* a) {
+    if (!a->symbol)
+        return true;
+    a->symbol->write = true;
+    printf("Assign variable: %s%s\n", a->value ? "*" : "", a->symbol->name);
+    fprintf(tempOut, code("MV %%[%s], t0"), a->symbol->name);
+    return false;
 }
 
 int main(int argc, char* argv[]) {
-    char *tempOutputFileName = NULL, *outputFileName = NULL, *outputName = NULL, *inputFileName = NULL;
+    char *tempOutputFileName = NULL, *outputFileName = NULL, *outputName = NULL;
     if (argc == 3) {
-        yyin = fopen(inputFileName = argv[1], "r");
+        yyin = fopen(yyInputFileName = argv[1], "r");
         outputName = argv[2];
     } else if (argc == 2) {
         yyin = stdin;
@@ -123,7 +152,7 @@ int main(int argc, char* argv[]) {
         outputName = "output";
     }
     if (!yyin) {
-        printf("file `%s` doesn't exists or cannot be opened\n", inputFileName);
+        printf("file `%s` doesn't exists or cannot be opened\n", yyInputFileName);
         exit(1);
     }
     outputFileName = newStrCat(outputName, ".c");
@@ -176,8 +205,8 @@ int main(int argc, char* argv[]) {
     // Write input ouput
     map_entries(&funVar, entries, {
         Object* obj = entries->value;
-        if (obj->symbolData)
-            fprintf(tempOut, ":[%s] \"%s\"(%s)\n", (char*)entries->key, obj->symbolData->write ? "+r" : "r", (char*)entries->key);
+        if (obj->symbol)
+            fprintf(tempOut, ":[%s] \"%s\"(%s)\n", (char*)entries->key, obj->symbol->write ? "+r" : "r", (char*)entries->key);
     });
     map_free(&funVar);
 

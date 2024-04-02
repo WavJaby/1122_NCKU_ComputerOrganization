@@ -22,17 +22,18 @@ typedef enum _objectType {
     OBJECT_TYPE_ARRAY,
 } ObjectType;
 
-typedef struct _symbolData {
+typedef struct SymbolData {
     uint32_t index;
     char* name;
     uint64_t addr;
     bool write;
+    bool pointer;
 } SymbolData;
 
 typedef struct Object {
     ObjectType type;
     uint64_t value;
-    SymbolData* symbolData;
+    SymbolData* symbol;
 } Object;
 
 #endif /* COMPILER_COMMON_H */
