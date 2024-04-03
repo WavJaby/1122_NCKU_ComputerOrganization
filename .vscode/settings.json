@@ -4,6 +4,7 @@
         "test.h": "c",
         "compiler_common.h": "c",
         "main.h": "c",
-        "wjcl_hash_map.h": "c"
+        "wjcl_hash_map.h": "c",
+        "typeinfo": "c"
     }
 }

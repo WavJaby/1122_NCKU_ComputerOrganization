@@ -13,7 +13,6 @@
     char errorCache[128];
 
     #define ERROR_PREFIX "%s:%d:%d: error: "
-    #define checkVariableDef(varName) findVariable(varName);if(!obj) yyerrorf("variable '%s' not declared\n", varName);
 
     void yyerror(char const *msg) {
         printf(ERROR_PREFIX " %s\n", yyInputFileName, yylineno, yycolumn - yyleng + 1, msg);
@@ -97,13 +96,13 @@ Stmt
         if(objectValueAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
     }
     // i++
-    | ExpressionListStmt INC_ASSIGN ';' {
+    /* | ExpressionListStmt INC_ASSIGN ';' {
         if(objectIncreaseAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
-    }
+    } */
     // i--
-    | ExpressionListStmt DEC_ASSIGN ';' {
+    /* | ExpressionListStmt DEC_ASSIGN ';' {
         if(objectDecreaseAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
-    }
+    } */
     // +=
     | ExpressionListStmt ADD_ASSIGN ExpressionListStmt ';' {
         if(objectAddAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' can not add assign\n", $<object_val>1.symbol->name);
@@ -131,9 +130,11 @@ FunctionVariableStmt
 
 ExpressionListStmt
     : ExpressionListStmt ADD ValueStmt { if(objectAdd(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    | ExpressionListStmt SUB ValueStmt { if(objectSub(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    | ExpressionListStmt MUL ValueStmt { if(objectMul(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
     | ExpressionListStmt DIV ValueStmt { if(objectDiv(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
     | '(' ExpressionListStmt ')' { $$ = $<object_val>2; }
-    | MUL '(' ExpressionListStmt ')' { $$ = $<object_val>3; $$.value |= VAR_FLAG_PTR; }
+    | MUL '(' ExpressionListStmt ')' { $$ = $<object_val>3; $$.value |= VAR_FLAG_POINTER_VALUE; }
     | ValueStmt
 ;
 
@@ -142,22 +143,15 @@ ValueStmt
     | FLOAT_LIT { $$ = (Object){OBJECT_TYPE_FLOAT, (*(uint32_t*)&$<f_var>1), NULL}; }
     | INT_LIT { $$ = (Object){OBJECT_TYPE_INT, (*(uint32_t*)&$<i_var>1), NULL}; }
     | STR_LIT { $$ = (Object){OBJECT_TYPE_STR, (*(uint64_t*)&$<s_var>1), NULL}; }
-    | IDENT {
-        Object *obj = checkVariableDef($<s_var>1);
-        $$ = *obj;
+    | IDENT { Object* o = findVariable($<s_var>1);
+        if(!o) yyerrorf("variable '%s' not declared\n", $<s_var>1);
+        $$ = *o;
+    }
+    | MUL IDENT { Object* o = findVariable($<s_var>1);
+        if(!o) yyerrorf("variable '%s' not declared\n", $<s_var>1);
+        $$ = (Object){o->type, VAR_FLAG_POINTER_VALUE, o->symbol};
     }
 ;
-
-/* IdentStmt
-    : IDENT {
-        Object *obj = checkVariableDef($<s_var>1);
-        $$ = *obj;
-    }
-    | MUL IDENT {
-        Object *obj = checkVariableDef($<s_var>2);
-        $$ = (Object){obj->type, VAR_FLAG_PTR, obj->symbol};
-    }
-; */
 
 %%
 /* C code section */

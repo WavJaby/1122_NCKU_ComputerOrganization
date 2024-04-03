@@ -7,5 +7,5 @@
 // }
 
 int main(int i, int j, int f, int* p_x, int* p_h, int* p_y) {
-    *(p_x + 1) = i;
+    *p_x = i;
 }
