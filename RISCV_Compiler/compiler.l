@@ -16,8 +16,8 @@
 letter [a-zA-Z_]
 digit [0-9]
 variable {letter}+({letter}|{digit})*
-inumber ("-"|"+")?{digit}+
-fnumber ("-"|"+")?({digit}*\.{digit}+)
+inumber {digit}+
+fnumber ({digit}*\.{digit}+)
 
 %option yylineno
 %x CMT_CON

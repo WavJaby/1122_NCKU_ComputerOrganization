@@ -133,6 +133,8 @@ ExpressionListStmt
     | ExpressionListStmt SUB ValueStmt { if(objectSub(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
     | ExpressionListStmt MUL ValueStmt { if(objectMul(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
     | ExpressionListStmt DIV ValueStmt { if(objectDiv(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    | ExpressionListStmt ADD_ASSIGN { if(objectIncAssign(&$<object_val>1, &$$)) YYABORT; }
+    | ExpressionListStmt DEC_ASSIGN { if(objectDecAssign(&$<object_val>1, &$$)) YYABORT; }
     | '(' ExpressionListStmt ')' { $$ = $<object_val>2; }
     | MUL '(' ExpressionListStmt ')' { $$ = $<object_val>3; $$.value |= VAR_FLAG_POINTER_VALUE; }
     | ValueStmt

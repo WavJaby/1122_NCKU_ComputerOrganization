@@ -140,16 +140,6 @@ bool objectIncreaseAssignNum(Object* a, int num) {
     return false;
 }
 
-// ++
-bool objectIncreaseAssign(Object* a) {
-    objectIncreaseAssignNum(a, objectSize(a));
-}
-
-// --
-bool objectDecreaseAssign(Object* a) {
-    objectIncreaseAssignNum(a, -objectSize(a));
-}
-
 #define VAR "%s%s%s"
 #define setVAR(var) ((var)->value & VAR_FLAG_IS_REGISTER)          \
                         ? (((var)->value & VAR_FLAG_POINTER_VALUE) \
@@ -201,19 +191,19 @@ bool objectValueAssign(Object* dest, Object* value) {
 bool objectAssign(Object* dest, Object* val, bool sub) {
     dest->symbol->write = true;
     if (dest->type != val->type)
-        return false;
+        return true;
 
     // Variable value
     if (val->symbol)
-        return false;
+        return true;
 
     // Normal value
     switch (dest->type) {
     case OBJECT_TYPE_INT:
         if (sub)
-            objectIncreaseAssignNum(dest, -objectSize(dest) * toInt(val->value));
+            return objectIncreaseAssignNum(dest, -objectSize(dest) * toInt(val->value));
         else
-            objectIncreaseAssignNum(dest, objectSize(dest) * toInt(val->value));
+            return objectIncreaseAssignNum(dest, objectSize(dest) * toInt(val->value));
         break;
     default:
         return false;
@@ -237,13 +227,21 @@ bool objectSubAssign(Object* dest, Object* val) {
     return objectAssign(dest, val, true);
 }
 
+// ++
+bool objectIncAssign(Object* a, Object* out) {
+    objectIncreaseAssignNum(a, objectSize(a));
+}
+
+// --
+bool objectDecAssign(Object* a, Object* out) {
+    objectIncreaseAssignNum(a, -objectSize(a));
+}
+
 void variableValueInst3(const char* inst, Object* a, uint64_t aFlag, Object* value, Object* out) {
-    // Two variable
-    fprintf(tempOut, code("lw t1, " VAR), setVAR(a));
-    fprintf(tempOut, a->symbol->pointer && aFlag & VAR_FLAG_POINTER_VALUE  // Is pointer && get pointer value
-                         ? code("%si 0(%%[%s]), 0(%%[%s]), %d")
-                         : code("%si %%[%s], %%[%s], %d"),
-            inst, a->symbol->name, a->symbol->name,
+    // One variable and Value
+    if (aFlag & ~VAR_FLAG_IS_REGISTER)
+        fprintf(tempOut, code("lw t1, " VAR), setVAR(a));
+    fprintf(tempOut, code("%si " VAR ", " VAR ", %d"), inst, setVAR(a), setVAR(a),
             a->symbol->pointer ? toInt(value->value) * objectTypeSize[OBJECT_TYPE_INT] : toInt(value->value));
 }
 
