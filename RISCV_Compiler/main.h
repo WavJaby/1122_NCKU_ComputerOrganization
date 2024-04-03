@@ -21,8 +21,9 @@ bool objectMul(Object* a, Object* b, Object* out);
 bool objectDiv(Object* a, Object* b, Object* out);
 bool objectIncAssign(Object* a, Object* out);
 bool objectDecAssign(Object* a, Object* out);
-bool objectValueAssign(Object* a, Object* b);
+bool objectValueAssign(Object* dest, Object* val);
 bool objectAddAssign(Object* dest, Object* val);
 bool objectSubAssign(Object* dest, Object* val);
+bool getPointerValue(Object* exp, Object* out);
 
 #endif

@@ -95,14 +95,6 @@ Stmt
     | ExpressionListStmt VAL_ASSIGN ExpressionListStmt ';' { 
         if(objectValueAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
     }
-    // i++
-    /* | ExpressionListStmt INC_ASSIGN ';' {
-        if(objectIncreaseAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
-    } */
-    // i--
-    /* | ExpressionListStmt DEC_ASSIGN ';' {
-        if(objectDecreaseAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
-    } */
     // +=
     | ExpressionListStmt ADD_ASSIGN ExpressionListStmt ';' {
         if(objectAddAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' can not add assign\n", $<object_val>1.symbol->name);
@@ -129,29 +121,33 @@ FunctionVariableStmt
 ;
 
 ExpressionListStmt
-    : ExpressionListStmt ADD ValueStmt { if(objectAdd(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
-    | ExpressionListStmt SUB ValueStmt { if(objectSub(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
-    | ExpressionListStmt MUL ValueStmt { if(objectMul(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
-    | ExpressionListStmt DIV ValueStmt { if(objectDiv(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    : ExpressionListStmt ADD ExpressionListStmt { if(objectAdd(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    | ExpressionListStmt SUB ExpressionListStmt { if(objectSub(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    | ExpressionListStmt MUL ExpressionListStmt { if(objectMul(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    | ExpressionListStmt DIV ExpressionListStmt { if(objectDiv(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
     | ExpressionListStmt ADD_ASSIGN { if(objectIncAssign(&$<object_val>1, &$$)) YYABORT; }
     | ExpressionListStmt DEC_ASSIGN { if(objectDecAssign(&$<object_val>1, &$$)) YYABORT; }
     | '(' ExpressionListStmt ')' { $$ = $<object_val>2; }
-    | MUL '(' ExpressionListStmt ')' { $$ = $<object_val>3; $$.value |= VAR_FLAG_POINTER_VALUE; }
+    | MUL '(' ExpressionListStmt ')' { if(getPointerValue(&$<object_val>2, &$$)) YYABORT; }
     | ValueStmt
 ;
 
 ValueStmt
-    : BOOL_LIT { $$ = (Object){OBJECT_TYPE_BOOL, (*(uint8_t*)&$<b_var>1), NULL}; }
-    | FLOAT_LIT { $$ = (Object){OBJECT_TYPE_FLOAT, (*(uint32_t*)&$<f_var>1), NULL}; }
-    | INT_LIT { $$ = (Object){OBJECT_TYPE_INT, (*(uint32_t*)&$<i_var>1), NULL}; }
-    | STR_LIT { $$ = (Object){OBJECT_TYPE_STR, (*(uint64_t*)&$<s_var>1), NULL}; }
+    : BOOL_LIT { $$ = (Object){OBJECT_TYPE_BOOL, (*(uint8_t*)&$<b_var>1), 0, NULL}; }
+    | FLOAT_LIT { $$ = (Object){OBJECT_TYPE_FLOAT, (*(uint32_t*)&$<f_var>1), 0, NULL}; }
+    | INT_LIT { $$ = (Object){OBJECT_TYPE_INT, (*(uint32_t*)&$<i_var>1), 0, NULL}; }
+    | STR_LIT { $$ = (Object){OBJECT_TYPE_STR, (*(uint64_t*)&$<s_var>1), 0, NULL}; }
     | IDENT { Object* o = findVariable($<s_var>1);
         if(!o) yyerrorf("variable '%s' not declared\n", $<s_var>1);
         $$ = *o;
     }
-    | MUL IDENT { Object* o = findVariable($<s_var>1);
+    | MUL IDENT { Object* o = findVariable($<s_var>2);
+        if(!o) yyerrorf("variable '%s' not declared\n", $<s_var>2);
+        $$ = (Object){o->type, VAR_FLAG_POINTER_VALUE, 0, o->symbol};
+    }
+    | IDENT '[' INT_LIT ']' { Object* o = findVariable($<s_var>1);
         if(!o) yyerrorf("variable '%s' not declared\n", $<s_var>1);
-        $$ = (Object){o->type, VAR_FLAG_POINTER_VALUE, o->symbol};
+        $$ = (Object){o->type, VAR_FLAG_POINTER_VALUE, $<i_var>3, o->symbol};
     }
 ;
 
