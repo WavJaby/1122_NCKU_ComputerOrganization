@@ -58,8 +58,7 @@
 /* Nonterminal with return, which need to sepcify type */
 %type <object_val> ExpressionListStmt
 %type <object_val> ValueStmt
-%type <object_val> IdentExpStmt
-%type <object_val> IdentStmt
+/* %type <object_val> IdentStmt */
 
 %left VAL_ASSIGN ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN REM_ASSIGN SHR_ASSIGN SHL_ASSIGN BAN_ASSIGN BOR_ASSIGN
 %left LOR
@@ -94,23 +93,23 @@ Stmt
     | ';'
     | VARIABLE_T IDENT '(' FunctionVariableStmtList ')' {} ScopeStmt
     // =
-    | IdentExpStmt VAL_ASSIGN ExpressionListStmt ';' { 
+    | ExpressionListStmt VAL_ASSIGN ExpressionListStmt ';' { 
         if(objectValueAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
     }
     // i++
-    | IdentStmt INC_ASSIGN ';' {
+    | ExpressionListStmt INC_ASSIGN ';' {
         if(objectIncreaseAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
     }
     // i--
-    | IdentStmt DEC_ASSIGN ';' {
+    | ExpressionListStmt DEC_ASSIGN ';' {
         if(objectDecreaseAssign(&$<object_val>1)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
     }
     // +=
-    | IdentExpStmt ADD_ASSIGN ExpressionListStmt ';' {
+    | ExpressionListStmt ADD_ASSIGN ExpressionListStmt ';' {
         if(objectAddAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' can not add assign\n", $<object_val>1.symbol->name);
     }
     // -=
-    | IdentExpStmt SUB_ASSIGN ExpressionListStmt ';' {
+    | ExpressionListStmt SUB_ASSIGN ExpressionListStmt ';' {
         if(objectSubAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' can not sub assign\n", $<object_val>1.symbol->name);
     }
 ;
@@ -133,6 +132,8 @@ FunctionVariableStmt
 ExpressionListStmt
     : ExpressionListStmt ADD ValueStmt { if(objectAdd(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
     | ExpressionListStmt DIV ValueStmt { if(objectDiv(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    | '(' ExpressionListStmt ')' { $$ = $<object_val>2; }
+    | MUL '(' ExpressionListStmt ')' { $$ = $<object_val>3; $$.value |= VAR_FLAG_PTR; }
     | ValueStmt
 ;
 
@@ -141,18 +142,13 @@ ValueStmt
     | FLOAT_LIT { $$ = (Object){OBJECT_TYPE_FLOAT, (*(uint32_t*)&$<f_var>1), NULL}; }
     | INT_LIT { $$ = (Object){OBJECT_TYPE_INT, (*(uint32_t*)&$<i_var>1), NULL}; }
     | STR_LIT { $$ = (Object){OBJECT_TYPE_STR, (*(uint64_t*)&$<s_var>1), NULL}; }
-    | IdentExpStmt
-;
-
-IdentExpStmt
-    : IdentStmt
-    | IdentStmt INC_ASSIGN {
-        $$ = $<object_val>1;
-        $$.value |= VAR_FLAG_INC_ASSIGN;
+    | IDENT {
+        Object *obj = checkVariableDef($<s_var>1);
+        $$ = *obj;
     }
 ;
 
-IdentStmt
+/* IdentStmt
     : IDENT {
         Object *obj = checkVariableDef($<s_var>1);
         $$ = *obj;
@@ -161,7 +157,7 @@ IdentStmt
         Object *obj = checkVariableDef($<s_var>2);
         $$ = (Object){obj->type, VAR_FLAG_PTR, obj->symbol};
     }
-;
+; */
 
 %%
 /* C code section */
