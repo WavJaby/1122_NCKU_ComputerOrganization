@@ -1,17 +1,32 @@
 #include "main.h"
 #define DEBUG
+#define DEBUG_OUT
 #define WJCL_LINKED_LIST_IMPLEMENTATION
 #define WJCL_HASH_MAP_IMPLEMENTATION
 #include "../../WJCL/map/wjcl_hash_map.h"
 
 #define RISCV_PREFIX "//########## Generate by RISC-V compiler ##########"
 #define RISCV_SUBFIX "//##########     Compiler by WavJaby     ##########"
-#define pointerPrefix(obj) (obj)->symbol->ptr && (obj)->value& VAR_FLAG_POINTER_VALUE ? "*" : ""
+#define DISPVAR "%s%s"
+#define setDISPVAR(obj) (obj)->symbol                                \
+                            ? (obj)->value &VAR_FLAG_PTR_VALUE ? "*" \
+                              : (obj)->value &VAR_FLAG_REG     ? "_" \
+                                                               : ""  \
+                            : "",                                    \
+                        (obj)->symbol ? (obj)->symbol->name : ""
+#define debug printf("%s:%d: debug\n", __FILE__, __LINE__)
+
 #define toInt(val) (*(int*)&val)
-#define objectSize(obj) ((obj)->symbol->ptr && !((obj)->value & VAR_FLAG_POINTER_VALUE) /* Is pointer && get pointer value */ \
-                             ? objectTypeSize[(obj)->type]                                                                    \
+#define objectSize(obj) ((obj)->symbol->ptr && !((obj)->value & VAR_FLAG_PTR_VALUE) /* Is pointer && get pointer value */ \
+                             ? objectTypeSize[(obj)->type]                                                                \
                              : 1)
+#ifdef DEBUG_OUT
+#define code(code) "\"" code "\\n\\t\""
+#define debugOut(format, ...) fprintf(tempOut, "  // " format "\n", __VA_ARGS__)
+#else
 #define code(code) "\"" code "\\n\\t\"\n"
+#define debugOut(...)
+#endif
 
 uint8_t objectTypeSize[] = {
     [OBJECT_TYPE_UNDEFINED] = 0,
@@ -85,23 +100,19 @@ NodeInfo funVarInfo = {
 };
 Map funVar;
 
-void debugPrintInst(char instc, Object* a, Object* b, char* outReg) {
+void debugPrintInst(char instc, Object* a, Object* b, Object* out) {
     if (a->symbol && b->symbol)
-        printf("%s%s %c %s%s => %s\n",
-               pointerPrefix(a), (a)->symbol->name, instc,
-               pointerPrefix(b), (b)->symbol->name, outReg);
+        debugOut(DISPVAR " %c " DISPVAR " => " DISPVAR "", setDISPVAR(a), instc, setDISPVAR(b), setDISPVAR(out));
+    // printf(DISPVAR " %c " DISPVAR " => " DISPVAR "\n", setDISPVAR(a), instc, setDISPVAR(b), setDISPVAR(out));
     else if (!a->symbol && !b->symbol)
-        printf("%d %c %d => %s\n",
-               toInt(a->value), instc,
-               toInt(a->value), outReg);
-    else if (!a->symbol && b->symbol)
-        printf("%d %c %s%s => %s\n",
-               toInt(a->value), instc,
-               pointerPrefix(b), (b)->symbol->name, outReg);
+        debugOut("%d %c %d => " DISPVAR "", toInt(a->value), instc, toInt(a->value), setDISPVAR(out));
+    // printf("%d %c %d => " DISPVAR "\n", toInt(a->value), instc, toInt(a->value), setDISPVAR(out));
+    else if (a->symbol)
+        debugOut(DISPVAR " %c %d => " DISPVAR "", setDISPVAR(a), instc, toInt(b->value), setDISPVAR(out));
+    // printf(DISPVAR " %c %d => " DISPVAR "\n", setDISPVAR(a), instc, toInt(b->value), setDISPVAR(out));
     else
-        printf("%s%s %c %d => %s\n",
-               pointerPrefix(a), (a)->symbol->name, instc,
-               toInt(a->value), outReg);
+        debugOut("%d %c " DISPVAR " => " DISPVAR "", toInt(a->value), instc, setDISPVAR(b), setDISPVAR(out));
+    // printf("%d %c " DISPVAR " => " DISPVAR "\n", toInt(a->value), instc, setDISPVAR(b), setDISPVAR(out));
 }
 
 void pushFunVar(ObjectType variableType, const char* variableName, bool ptr) {
@@ -119,7 +130,7 @@ void pushFunVar(ObjectType variableType, const char* variableName, bool ptr) {
 
 Object* findVariable(const char* variableName) {
     Object* value = (Object*)map_get(&funVar, (void*)variableName);
-    printf("Find variable: %s\n", variableName);
+    // printf("Find variable: %s\n", variableName);
     if (!value || !value->symbol)
         return NULL;
     return value;
@@ -130,9 +141,9 @@ bool objectIncreaseAssignNum(Object* a, int num) {
         return true;
 
     a->symbol->write = true;
-    printf("Increase variable '%s%s' by %d\n", pointerPrefix(a), a->symbol->name, num);
+    // printf(DISPVAR " += %d\n", setDISPVAR(a), num);
 
-    if (a->symbol->ptr && a->value & VAR_FLAG_POINTER_VALUE)  // Is pointer && get pointer value
+    if (a->symbol->ptr && a->value & VAR_FLAG_PTR_VALUE)  // Is pointer && get pointer value
         fprintf(tempOut, code("addi 0(%%[%s]), 0(%%[%s]), %d"), a->symbol->name, a->symbol->name, num);
     else
         fprintf(tempOut, code("addi %%[%s], %%[%s], %d"), a->symbol->name, a->symbol->name, num);
@@ -146,29 +157,32 @@ char* getVariablePtrOffsetStr(Object* obj) {
 }
 
 #define VAR "%s%s%s"
-#define setVAR(var) ((var)->value & VAR_FLAG_IS_REGISTER)          \
-                        ? (((var)->value & VAR_FLAG_POINTER_VALUE) \
-                               ? "0("                              \
-                               : "")                               \
-                        : (((var)->value & VAR_FLAG_POINTER_VALUE) \
-                               ? getVariablePtrOffsetStr(var)      \
-                               : "%["),                            \
-                    (var)->symbol->name,                           \
-                    ((var)->value & VAR_FLAG_IS_REGISTER)          \
-                        ? (((var)->value & VAR_FLAG_POINTER_VALUE) \
-                               ? ")"                               \
-                               : "")                               \
-                        : (((var)->value & VAR_FLAG_POINTER_VALUE) \
-                               ? "])"                              \
+#define setVAR(var) ((var)->value & VAR_FLAG_REG)              \
+                        ? (((var)->value & VAR_FLAG_PTR_VALUE) \
+                               ? "0("                          \
+                               : "")                           \
+                        : (((var)->value & VAR_FLAG_PTR_VALUE) \
+                               ? getVariablePtrOffsetStr(var)  \
+                               : "%["),                        \
+                    (var)->symbol->name,                       \
+                    ((var)->value & VAR_FLAG_REG)              \
+                        ? (((var)->value & VAR_FLAG_PTR_VALUE) \
+                               ? ")"                           \
+                               : "")                           \
+                        : (((var)->value & VAR_FLAG_PTR_VALUE) \
+                               ? "])"                          \
                                : "]")
 
-void loadVariableToRegister(char* reg, Object* variable) {
-    if (variable->value & VAR_FLAG_POINTER_VALUE)  // Store variable pointer value to t2
+bool tryLoadPtrValueToReg(char* reg, Object* var) {
+    if (var->symbol && var->symbol->ptr &&
+        var->value & VAR_FLAG_PTR_VALUE) {  // Load variable pointer
         fprintf(tempOut, code("lw %s, %d(%%[%s])"), reg,
-                variable->ptrOffset * objectTypeSize[variable->type],
-                variable->symbol->name);
-    else if (!(variable->value & VAR_FLAG_IS_REGISTER))  // Store variable value to t2
-        fprintf(tempOut, code("lw %s, %%[%s]"), reg, variable->symbol->name);
+                var->ptrOffset * objectTypeSize[var->type],
+                var->symbol->name);
+        debugOut(DISPVAR, setDISPVAR(var));
+        return true;
+    }
+    return false;
 }
 
 bool t3RegInUse = false;
@@ -182,25 +196,26 @@ bool objectValueAssign(Object* dest, Object* val) {
     dest->symbol->write = true;
     // Assign from variable
     if (val->symbol) {
-        printf("%s%s <= %s%s\n", pointerPrefix(dest), dest->symbol->name, pointerPrefix(val), val->symbol->name);
-        // if (dest->symbol->ptr) {
-        //     loadVariableToRegister("t0", val);
-        //     fprintf(tempOut, code("sw t0, " VAR), setVAR(dest));
-        // } else
-        fprintf(tempOut, code("sw " VAR ", " VAR), setVAR(val), setVAR(dest));
-
+        if (dest->symbol && dest->value & VAR_FLAG_PTR_VALUE) {
+            fprintf(tempOut, code("sw " VAR ", " VAR), setVAR(val), setVAR(dest));
+            debugOut(DISPVAR " => " DISPVAR, setDISPVAR(val), setDISPVAR(dest));
+        } else {
+            fprintf(tempOut, code("mv " VAR ", " VAR), setVAR(dest), setVAR(val));
+        }
+        debugOut(DISPVAR " <= " DISPVAR, setDISPVAR(dest), setDISPVAR(val));
         return false;
     }
 
     // Assign from value
     switch (val->type) {
     case OBJECT_TYPE_INT:
-        printf("%s%s <= %d\n", pointerPrefix(dest), dest->symbol->name, toInt(val->value));
         if (dest->symbol->ptr) {
             fprintf(tempOut, code("addi t0, zero, %d"), toInt(val->value));
             fprintf(tempOut, code("sw t0, " VAR), setVAR(dest));
-        } else
+        } else {
             fprintf(tempOut, code("addi " VAR ", zero, %d"), setVAR(dest), toInt(val->value));
+        }
+        debugOut(DISPVAR " <= %d", setDISPVAR(dest), toInt(val->value));
         return false;
     }
     return true;
@@ -229,20 +244,14 @@ bool objectAssign(Object* dest, Object* val, bool sub) {
     return false;
 }
 
-// +=
-bool objectAddAssign(Object* dest, Object* val) {
-    if (!dest->symbol)
-        return true;
-
-    return objectAssign(dest, val, false);
-}
-
-// -=
-bool objectSubAssign(Object* dest, Object* val) {
-    if (!dest->symbol)
-        return true;
-
-    return objectAssign(dest, val, true);
+void variableInst3(const char* inst, Object* a, Object* b, Object* out) {
+    Object cacheA = {a->type, VAR_FLAG_REG, 0, &(SymbolData){"t0"}},
+           cacheB = {b->type, VAR_FLAG_REG, 0, &(SymbolData){"t1"}};
+    if (tryLoadPtrValueToReg("t0", a))
+        a = &cacheA;
+    if (tryLoadPtrValueToReg("t1", b))
+        b = &cacheB;
+    fprintf(tempOut, code("%s " VAR ", " VAR ", " VAR), inst, setVAR(out), setVAR(a), setVAR(b));
 }
 
 // ++
@@ -258,43 +267,14 @@ bool objectDecAssign(Object* a, Object* out) {
 // *ptr
 bool getPointerValue(Object* exp, Object* out) {
     SymbolData* symbol = malloc(sizeof(SymbolData)); /** TODO: Need free */
-    symbol->name = "t0";
+    symbol->name = "t5";
     out->type = OBJECT_TYPE_INT;
-    out->value = VAR_FLAG_IS_REGISTER;
+    out->value = VAR_FLAG_REG | VAR_FLAG_PTR_VALUE;
     out->ptrOffset = 0;
     out->symbol = symbol;
     printf("Convert to pointer value\n");
-    loadVariableToRegister(symbol->name, exp);
+    fprintf(tempOut, code("mv %s, " VAR), symbol->name, setVAR(exp));
     return false;
-}
-
-void variableValueInst3(const char* inst, Object* a, uint64_t aFlag, Object* value, Object* out) {
-    // One variable and Value
-    loadVariableToRegister("t0", a);
-    fprintf(tempOut, code("%si " VAR ", t0, %d"), inst, setVAR(out),
-            a->symbol->ptr && !(a->value & VAR_FLAG_POINTER_VALUE)
-                ? toInt(value->value) * objectTypeSize[OBJECT_TYPE_INT]
-                : toInt(value->value));
-}
-
-void variableInst3(const char* inst, Object* a, uint64_t aFlag, Object* b, uint64_t bFlag, Object* out) {
-    loadVariableToRegister("t0", a);
-    loadVariableToRegister("t1", b);
-
-    if (aFlag && bFlag)
-        fprintf(tempOut, code("%s %s, %s, %s"), inst, out->symbol->name,
-                (aFlag & VAR_FLAG_IS_REGISTER) ? a->symbol->name : "t0",
-                (bFlag & VAR_FLAG_IS_REGISTER) ? b->symbol->name : "t1");
-    else if (!aFlag && !bFlag)
-        fprintf(tempOut, code("%s %s, %%[%s], %%[%s]"), inst, out->symbol->name, a->symbol->name, b->symbol->name);
-    else if (aFlag)
-        fprintf(tempOut, code("%s %s, %s, %%[%s]"), inst, out->symbol->name,
-                b->symbol->name,
-                (aFlag & VAR_FLAG_IS_REGISTER) ? a->symbol->name : "t0");
-    else
-        fprintf(tempOut, code("%s %s, %%[%s], %s"), inst, out->symbol->name,
-                a->symbol->name,
-                (bFlag & VAR_FLAG_IS_REGISTER) ? b->symbol->name : "t1");
 }
 
 bool objectExpression(char operator, Object * a, Object* b, Object* out) {
@@ -314,18 +294,15 @@ bool objectExpression(char operator, Object * a, Object* b, Object* out) {
         return false;
     }
 
-    if (a->symbol && a->value & VAR_FLAG_IS_REGISTER)
-        t3RegInUse = false;
-
     out->type = OBJECT_TYPE_INT;
-    out->value = VAR_FLAG_IS_REGISTER;
+    out->value = VAR_FLAG_REG;
     out->ptrOffset = 0;
 
+    if (a->symbol && a->value & VAR_FLAG_REG)
+        t3RegInUse = false;
     out->symbol = malloc(sizeof(SymbolData)); /** TODO: Need free */
     out->symbol->name = t3RegInUse ? "t4" : "t3";
     t3RegInUse = true;
-
-    debugPrintInst(operator, a, b, out->symbol->name);
 
     char* opInst;
     switch (operator) {
@@ -347,7 +324,8 @@ bool objectExpression(char operator, Object * a, Object* b, Object* out) {
 
     // Two variable add
     if (a->symbol && b->symbol) {
-        variableInst3(opInst, a, a->value, b, b->value, out);
+        variableInst3(opInst, a, b, out);
+        debugPrintInst(operator, a, b, out);
         return false;
     }
 
@@ -357,7 +335,14 @@ bool objectExpression(char operator, Object * a, Object* b, Object* out) {
         a = b;
         b = swap;
     }
-    variableValueInst3(opInst, a, a->value, b, out);
+    SymbolData symbol = {"t0"};
+    Object cacheVar = {OBJECT_TYPE_INT, VAR_FLAG_REG, 0, &symbol};
+
+    cacheVar.type = OBJECT_TYPE_INT;
+    fprintf(tempOut, code("addi %s, zero, %d"), symbol.name, toInt(b->value));
+    debugOut("%s <= %d", symbol.name, toInt(b->value));
+    variableInst3(opInst, a, &cacheVar, out);
+    debugPrintInst(operator, a, b, out);
     return false;
 }
 
@@ -375,6 +360,16 @@ bool objectMul(Object* a, Object* b, Object* out) {
 
 bool objectDiv(Object* a, Object* b, Object* out) {
     return objectExpression('/', a, b, out);
+}
+
+// +=
+bool objectAddAssign(Object* dest, Object* val) {
+    return objectAdd(dest, val, dest);
+}
+
+// -=
+bool objectSubAssign(Object* dest, Object* val) {
+    return objectSub(dest, val, dest);
 }
 
 int main(int argc, char* argv[]) {

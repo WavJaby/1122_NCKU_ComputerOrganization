@@ -3,7 +3,7 @@ int main()
 { 
     int f, i, j;
     int h[9] = {0}, x[6] = {0}, y[6] = {0}; 
-    FILE *input = fopen("CO2024HW1/input/3.txt", "r");
+    FILE *input = fopen("../input/3.txt", "r");
     for(i = 0; i < 9; i++) fscanf(input, "%d", &h[i]);
     for(i = 0; i < 6; i++) fscanf(input, "%d", &x[i]);
     for(i = 0; i < 6; i++) fscanf(input, "%d", &y[i]);
@@ -16,83 +16,36 @@ int main()
             for (f = 0; f < 3; f++)
                 asm volatile(
 //########## Generate by RISC-V compiler ##########
-"lw t0, 0(%[p_h])\n\t"
-"lw t1, 0(%[p_x])\n\t"
-"MUL t3, t0, t1\n\t"
-"lw t0, 4(%[p_h])\n\t"
-"lw t1, 8(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"lw t0, 8(%[p_h])\n\t"
-"lw t1, 16(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"sw t3, 0(%[p_y])\n\t"
-"lw t0, 0(%[p_h])\n\t"
-"lw t1, 4(%[p_x])\n\t"
-"MUL t3, t0, t1\n\t"
-"lw t0, 4(%[p_h])\n\t"
-"lw t1, 12(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"lw t0, 8(%[p_h])\n\t"
-"lw t1, 20(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"sw t3, 4(%[p_y])\n\t"
-"lw t0, 12(%[p_h])\n\t"
-"lw t1, 0(%[p_x])\n\t"
-"MUL t3, t0, t1\n\t"
-"lw t0, 16(%[p_h])\n\t"
-"lw t1, 8(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"lw t0, 20(%[p_h])\n\t"
-"lw t1, 16(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"sw t3, 8(%[p_y])\n\t"
-"lw t0, 12(%[p_h])\n\t"
-"lw t1, 4(%[p_x])\n\t"
-"MUL t3, t0, t1\n\t"
-"lw t0, 16(%[p_h])\n\t"
-"lw t1, 12(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"lw t0, 20(%[p_h])\n\t"
-"lw t1, 20(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"sw t3, 12(%[p_y])\n\t"
-"lw t0, 24(%[p_h])\n\t"
-"lw t1, 0(%[p_x])\n\t"
-"MUL t3, t0, t1\n\t"
-"lw t0, 28(%[p_h])\n\t"
-"lw t1, 8(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"lw t0, 32(%[p_h])\n\t"
-"lw t1, 16(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"sw t3, 16(%[p_y])\n\t"
-"lw t0, 24(%[p_h])\n\t"
-"lw t1, 4(%[p_x])\n\t"
-"MUL t3, t0, t1\n\t"
-"lw t0, 28(%[p_h])\n\t"
-"lw t1, 12(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"lw t0, 32(%[p_h])\n\t"
-"lw t1, 20(%[p_x])\n\t"
-"MUL t4, t0, t1\n\t"
-"ADD t3, t3, t4\n\t"
-"sw t3, 20(%[p_y])\n\t"
-"addi %[i], zero, 3\n\t"
-"addi %[j], zero, 2\n\t"
-"addi %[f], zero, 3\n\t"
-: [f] "+r"(f), [p_y] "+r"(p_y), [i] "+r"(i), [j] "+r"(j)
-: [p_x] "r"(p_x), [p_h] "r"(p_h), [h] "r"(h), [x] "r"(x), [y] "r"(y)
+"addi t0, zero, 3\n\t"  // t0 <= 3
+"MUL t3, %[i], t0\n\t"  // i * 3 => _t3
+"ADD t3, t3, %[f]\n\t"  // _t3 + f => _t3
+"addi t0, zero, 4\n\t"  // t0 <= 4
+"MUL t3, t3, t0\n\t"  // _t3 * 4 => _t3
+"ADD t4, %[h], t3\n\t"  // h + _t3 => _t4
+"mv %[p_h], t4\n\t"  // p_h <= _t4
+"addi t0, zero, 2\n\t"  // t0 <= 2
+"MUL t3, %[f], t0\n\t"  // f * 2 => _t3
+"ADD t4, %[j], t3\n\t"  // j + _t3 => _t4
+"addi t0, zero, 4\n\t"  // t0 <= 4
+"MUL t3, t4, t0\n\t"  // _t4 * 4 => _t3
+"ADD t4, %[x], t3\n\t"  // x + _t3 => _t4
+"mv %[p_x], t4\n\t"  // p_x <= _t4
+"addi t0, zero, 2\n\t"  // t0 <= 2
+"MUL t3, %[i], t0\n\t"  // i * 2 => _t3
+"ADD t3, t3, %[j]\n\t"  // _t3 + j => _t3
+"addi t0, zero, 4\n\t"  // t0 <= 4
+"MUL t3, t3, t0\n\t"  // _t3 * 4 => _t3
+"ADD t4, %[y], t3\n\t"  // y + _t3 => _t4
+"mv %[p_y], t4\n\t"  // p_y <= _t4
+"lw t0, 0(%[p_h])\n\t"  // *p_h
+"lw t1, 0(%[p_x])\n\t"  // *p_x
+"MUL t3, t0, t1\n\t"  // *p_h * *p_x => _t3
+"lw t0, 0(%[p_y])\n\t"  // *p_y
+"ADD t4, t0, t3\n\t"  // *p_y + _t3 => _t4
+"sw t4, 0(%[p_y])\n\t"  // _t4 => *p_y
+  // *p_y <= _t4
+: [p_x] "+r"(p_x), [p_h] "+r"(p_h), [p_y] "+r"(p_y)
+: [f] "r"(f), [h] "r"(h), [x] "r"(x), [i] "r"(i), [y] "r"(y), [j] "r"(j)
 //##########     Compiler by WavJaby     ##########
 );
 	}

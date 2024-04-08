@@ -23,16 +23,9 @@
 int main(int i, int j, int f,
          int* p_x, int* p_h, int* p_y,
          int* h, int* x, int* y) {
-    p_y[0] = p_h[0] * p_x[0] + p_h[1] * p_x[2] + p_h[2] * p_x[4]; // h11*x1+h12*x3+h13*x5
-    p_y[1] = p_h[0] * p_x[1] + p_h[1] * p_x[3] + p_h[2] * p_x[5]; // h11*x2+h12*x4+h13*x6
+    p_h = h + (i * 3 + f) * 4;
+    p_x = x + (j + f * 2) * 4;
+    p_y = y + (i * 2 + j) * 4;
 
-    p_y[2] = p_h[3] * p_x[0] + p_h[4] * p_x[2] + p_h[5] * p_x[4]; // h21*x1+h22*x3+h23*x5
-    p_y[3] = p_h[3] * p_x[1] + p_h[4] * p_x[3] + p_h[5] * p_x[5]; // h21*x2+h22*x4+h23*x6
-
-    p_y[4] = p_h[6] * p_x[0] + p_h[7] * p_x[2] + p_h[8] * p_x[4]; // h31*x1+h32*x5+h33*x5
-    p_y[5] = p_h[6] * p_x[1] + p_h[7] * p_x[3] + p_h[8] * p_x[5]; // h31*x2+h32*x4+h33*x6
-    
-    i = 3;
-    j = 2;
-    f = 3;
+    *p_y = *p_y + *p_h * *p_x;
 }

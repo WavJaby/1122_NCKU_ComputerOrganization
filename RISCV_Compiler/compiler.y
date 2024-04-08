@@ -128,7 +128,7 @@ ExpressionListStmt
     | ExpressionListStmt ADD_ASSIGN { if(objectIncAssign(&$<object_val>1, &$$)) YYABORT; }
     | ExpressionListStmt DEC_ASSIGN { if(objectDecAssign(&$<object_val>1, &$$)) YYABORT; }
     | '(' ExpressionListStmt ')' { $$ = $<object_val>2; }
-    | MUL '(' ExpressionListStmt ')' { if(getPointerValue(&$<object_val>2, &$$)) YYABORT; }
+    | MUL '(' ExpressionListStmt ')' { if(getPointerValue(&$<object_val>3, &$$)) YYABORT; }
     | ValueStmt
 ;
 
@@ -143,11 +143,11 @@ ValueStmt
     }
     | MUL IDENT { Object* o = findVariable($<s_var>2);
         if(!o) yyerrorf("variable '%s' not declared\n", $<s_var>2);
-        $$ = (Object){o->type, VAR_FLAG_POINTER_VALUE, 0, o->symbol};
+        $$ = (Object){o->type, VAR_FLAG_PTR_VALUE, 0, o->symbol};
     }
     | IDENT '[' INT_LIT ']' { Object* o = findVariable($<s_var>1);
         if(!o) yyerrorf("variable '%s' not declared\n", $<s_var>1);
-        $$ = (Object){o->type, VAR_FLAG_POINTER_VALUE, $<i_var>3, o->symbol};
+        $$ = (Object){o->type, VAR_FLAG_PTR_VALUE, $<i_var>3, o->symbol};
     }
 ;
 
