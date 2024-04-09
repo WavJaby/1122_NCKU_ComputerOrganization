@@ -5,6 +5,7 @@
         "compiler_common.h": "c",
         "main.h": "c",
         "wjcl_hash_map.h": "c",
-        "typeinfo": "c"
+        "typeinfo": "c",
+        "string_cache.h": "c"
     }
 }

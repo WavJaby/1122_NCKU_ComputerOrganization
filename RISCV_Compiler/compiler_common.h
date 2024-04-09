@@ -25,13 +25,12 @@ typedef enum _objectType {
 typedef struct SymbolData {
     char* name;
     bool write;
-    bool ptr;
 } SymbolData;
 
 typedef struct Object {
     ObjectType type;
     uint64_t value;
-    uint32_t ptrOffset;
+    int ptrOffset;
     SymbolData* symbol;
 } Object;
 

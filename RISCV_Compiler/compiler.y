@@ -78,8 +78,13 @@
 /* Grammar section */
 
 Program
-    : StmtList
+    : VARIABLE_T IDENT '(' FunctionVariableStmtList ')' ScopeStmt
     | // Empty file
+;
+
+ScopeStmt
+    : '{' StmtList '}'
+    | '{' '}'
 ;
 
 StmtList 
@@ -90,24 +95,29 @@ StmtList
 Stmt
     : ScopeStmt
     | ';'
-    | VARIABLE_T IDENT '(' FunctionVariableStmtList ')' {} ScopeStmt
-    // =
-    | ExpressionListStmt VAL_ASSIGN ExpressionListStmt ';' { 
+    | FOR '(' ForVariableStmt ';' { forBegin(); } ExpressionListStmt ';' { forConditionEnd(&$<object_val>6); } VariableAssignStmt ')'
+        { forHeaderEnd(); } ScopeStmt { forEnd(); }
+    | VariableAssignStmt ';'
+;
+
+VariableAssignStmt
+    : ExpressionListStmt VAL_ASSIGN ExpressionListStmt { 
         if(objectValueAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name);
     }
     // +=
-    | ExpressionListStmt ADD_ASSIGN ExpressionListStmt ';' {
+    | ExpressionListStmt ADD_ASSIGN ExpressionListStmt {
         if(objectAddAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' can not add assign\n", $<object_val>1.symbol->name);
     }
     // -=
-    | ExpressionListStmt SUB_ASSIGN ExpressionListStmt ';' {
+    | ExpressionListStmt SUB_ASSIGN ExpressionListStmt {
         if(objectSubAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' can not sub assign\n", $<object_val>1.symbol->name);
     }
 ;
 
-ScopeStmt
-    : '{' StmtList '}'
-    | '{' '}'
+ForVariableStmt
+    : VARIABLE_T IDENT VAL_ASSIGN ExpressionListStmt { if(!createVariable($<var_type>1, $<s_var>2, &$<object_val>4)) yyerrorf("Failed to create variable '%s'\n", $<s_var>2); }
+    | ExpressionListStmt VAL_ASSIGN ExpressionListStmt { if(objectValueAssign(&$<object_val>1, &$<object_val>3)) yyerrorf("'%s' is not variable\n", $<object_val>1.symbol->name); }
+    |
 ;
 
 FunctionVariableStmtList 
@@ -125,10 +135,12 @@ ExpressionListStmt
     | ExpressionListStmt SUB ExpressionListStmt { if(objectSub(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
     | ExpressionListStmt MUL ExpressionListStmt { if(objectMul(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
     | ExpressionListStmt DIV ExpressionListStmt { if(objectDiv(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
-    | ExpressionListStmt ADD_ASSIGN { if(objectIncAssign(&$<object_val>1, &$$)) YYABORT; }
+    | ExpressionListStmt LES ExpressionListStmt { if(objectLes(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    | ExpressionListStmt GTR ExpressionListStmt { if(objectGtr(&$<object_val>1, &$<object_val>3, &$$)) YYABORT; }
+    | ExpressionListStmt INC_ASSIGN { if(objectIncAssign(&$<object_val>1, &$$)) YYABORT; }
     | ExpressionListStmt DEC_ASSIGN { if(objectDecAssign(&$<object_val>1, &$$)) YYABORT; }
+    | MUL ExpressionListStmt { if(getPointerValue(&$<object_val>2, &$$)) YYABORT; }
     | '(' ExpressionListStmt ')' { $$ = $<object_val>2; }
-    | MUL '(' ExpressionListStmt ')' { if(getPointerValue(&$<object_val>3, &$$)) YYABORT; }
     | ValueStmt
 ;
 
@@ -140,10 +152,6 @@ ValueStmt
     | IDENT { Object* o = findVariable($<s_var>1);
         if(!o) yyerrorf("variable '%s' not declared\n", $<s_var>1);
         $$ = *o;
-    }
-    | MUL IDENT { Object* o = findVariable($<s_var>2);
-        if(!o) yyerrorf("variable '%s' not declared\n", $<s_var>2);
-        $$ = (Object){o->type, VAR_FLAG_PTR_VALUE, 0, o->symbol};
     }
     | IDENT '[' INT_LIT ']' { Object* o = findVariable($<s_var>1);
         if(!o) yyerrorf("variable '%s' not declared\n", $<s_var>1);
