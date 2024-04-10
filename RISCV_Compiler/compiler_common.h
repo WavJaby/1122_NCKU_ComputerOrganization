@@ -1,11 +1,20 @@
 #ifndef COMPILER_COMMON_H
 #define COMPILER_COMMON_H
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <string.h>
+
+#define ERROR_PREFIX "%s:%d:%d: error: "
+
+#define yyerrorf(format, ...)                                                                         \
+    {                                                                                                 \
+        printf(ERROR_PREFIX format, yyInputFileName, yylineno, yycolumn - yyleng + 1, ##__VA_ARGS__); \
+        compileError = true;                                                                          \
+        YYABORT;                                                                                      \
+    }
 
 typedef enum _objectType {
     OBJECT_TYPE_UNDEFINED,

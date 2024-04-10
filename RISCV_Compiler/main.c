@@ -5,6 +5,7 @@
 #include "../../WJCL/map/wjcl_hash_map.h"
 #include "register_stack.h"
 #include "string_cache.h"
+#include "value_operation.h"
 
 #define RISCV_PREFIX "//########## Generate by RISC-V compiler ##########"
 #define RISCV_SUBFIX "//##########     Compiler by WavJaby     ##########"
@@ -33,23 +34,26 @@
                                ? "])"                          \
                                : "]")
 
-#define toInt(val) (*(int*)&val)
 #define isReg(obj) (obj)->symbol && (obj)->value& VAR_FLAG_REG
 #define isPtrVal(obj) (obj)->symbol && (obj)->value& VAR_FLAG_PTR_VALUE
 
-#define debug printf("%s:%d: debug\n", __FILE__, __LINE__)
+#define debug printf("%s:%d: ############### debug\n", __FILE__, __LINE__)
 #ifdef DEBUG_OUT
-#define codeOut(format, ...) \
-    if (useCacheCodeStream != -1) ssprintf(cacheCodeStream[useCacheCodeStream], "%*s\"" format "\\n\\t\"", indent << 2, "", __VA_ARGS__) else fprintf(tempOut, "%*s\"" format "\\n\\t\"", indent << 2, "", __VA_ARGS__)
-#define debugOut(format, ...)                                                                                                                                              \
-    if (useCacheCodeStream != -1) ssprintf(cacheCodeStream[useCacheCodeStream], "  // " format "\n", __VA_ARGS__) else fprintf(tempOut, "  // " format "\n", __VA_ARGS__); \
+#define codeOut(format, ...)      \
+    if (useCacheCodeStream != -1) \
+    ssprintf(cacheCodeStream[useCacheCodeStream], "%*s\"" format "\\n\\t\"", indent << 2, "", __VA_ARGS__) else fprintf(tempOut, "%*s\"" format "\\n\\t\"", indent << 2, "", __VA_ARGS__)
+#define debugOut(format, ...)                                                                                                                    \
+    if (useCacheCodeStream != -1)                                                                                                                \
+        ssprintf(cacheCodeStream[useCacheCodeStream], "  // " format "\n", __VA_ARGS__) else fprintf(tempOut, "  // " format "\n", __VA_ARGS__); \
     printf(format "\n", __VA_ARGS__)
-#define debugOutRaw(...)                                                                                                         \
-    if (useCacheCodeStream != -1) ssprintf(cacheCodeStream[useCacheCodeStream], __VA_ARGS__) else fprintf(tempOut, __VA_ARGS__); \
+#define debugOutRaw(...)                                                                               \
+    if (useCacheCodeStream != -1)                                                                      \
+        ssprintf(cacheCodeStream[useCacheCodeStream], __VA_ARGS__) else fprintf(tempOut, __VA_ARGS__); \
     printf(__VA_ARGS__)
 #else
-#define codeOut(format, ...) \
-    if (useCacheCodeStream != -1) ssprintf(cacheCodeStream[useCacheCodeStream], "\"" format "\\n\\t\"\n", __VA_ARGS__) else fprintf(tempOut, "\"" format "\\n\\t\"\n", __VA_ARGS__)
+#define codeOut(format, ...)      \
+    if (useCacheCodeStream != -1) \
+    ssprintf(cacheCodeStream[useCacheCodeStream], "\"" format "\\n\\t\"\n", __VA_ARGS__) else fprintf(tempOut, "\"" format "\\n\\t\"\n", __VA_ARGS__)
 #define debugOut(...)
 #define debugOutRaw(...)
 #endif
@@ -132,12 +136,15 @@ NodeInfo variableInfo = {
 Map funVar, createdVar;
 
 void debugPrintInst(char instc, Object* a, Object* b, Object* out) {
-    debugOut(DISPVAR " %c %d => " DISPVAR "", setDISPVAR(a), instc, toInt(b->value), setDISPVAR(out));
+    if (a->symbol) {
+        debugOut(DISPVAR " %c %d => " DISPVAR "", setDISPVAR(a), instc, toInt(b->value), setDISPVAR(out));
+    } else {
+        debugOut("%d %c " DISPVAR " => " DISPVAR "", toInt(a->value), instc, setDISPVAR(b), setDISPVAR(out));
+    }
 }
 
 char* getVariablePtrOffsetStr(Object* obj) {
-    static char cache1[12];
-    static char cache2[12];
+    static char cache1[12], cache2[12];
     static bool sw = false;
     char* cache = (sw = !sw) ? cache1 : cache2;
     if (obj->value & VAR_FLAG_REG)
@@ -167,8 +174,10 @@ bool objectValueAssign(Object* dest, Object* val) {
             codeOut("mv " VAR ", " VAR, setVAR(dest), setVAR(val));
         }
         debugOut(DISPVAR " <= " DISPVAR, setDISPVAR(dest), setDISPVAR(val));
-        if (isReg(dest)) freeTmpReg(dest);
-        if (isReg(val)) freeTmpReg(val);
+        if (isReg(dest))
+            freeTmpReg(dest);
+        if (isReg(val))
+            freeTmpReg(val);
         return false;
     }
 
@@ -184,8 +193,10 @@ bool objectValueAssign(Object* dest, Object* val) {
             codeOut("addi " VAR ", zero, %d", setVAR(dest), toInt(val->value));
         }
         debugOut(DISPVAR " <= %d", setDISPVAR(dest), toInt(val->value));
-        if (isReg(dest)) freeTmpReg(dest);
-        if (isReg(val)) freeTmpReg(val);
+        if (isReg(dest))
+            freeTmpReg(dest);
+        if (isReg(val))
+            freeTmpReg(val);
         return false;
     }
     return true;
@@ -222,7 +233,8 @@ Object* findVariable(const char* variableName) {
     Object* value = (Object*)map_get(&funVar, (void*)variableName);
     if (!value || !value->symbol)
         value = (Object*)map_get(&createdVar, (void*)variableName);
-    if (!value || !value->symbol) return NULL;
+    if (!value || !value->symbol)
+        return NULL;
     printf("Find variable '%s'\n", variableName);
     return value;
 }
@@ -242,8 +254,10 @@ void variableInst3(const char* inst, Object* a, Object* b, Object* out) {
         debugOut(DISPVAR, setDISPVAR(b));
         b = &cacheB;
     }
-    if (isReg(a)) freeTmpReg(a);
-    if (isReg(b)) freeTmpReg(b);
+    if (isReg(a))
+        freeTmpReg(a);
+    if (isReg(b))
+        freeTmpReg(b);
     out->symbol->name = getTmpReg(true);
     codeOut("%s " VAR ", " VAR ", " VAR, inst, setVAR(out), setVAR(a), setVAR(b));
 }
@@ -257,26 +271,14 @@ bool getPointerValue(Object* exp, Object* out) {
     return false;
 }
 
-bool objectExpression(char operator, Object * a, Object* b, Object* out) {
+bool objectExpression(char op, Object * a, Object* b, Object* out) {
     // Two value
     /** TODO: Fix here */
-    if (!a->symbol && !b->symbol) {
-        switch (a->type) {
-        case OBJECT_TYPE_INT:
-            switch (b->type) {
-            case OBJECT_TYPE_INT:
-                out->type = OBJECT_TYPE_INT;
-                out->value = toInt(a->value) + toInt(b->value);
-                out->symbol = NULL;
-                return false;
-            }
-            break;
-        }
-        return false;
-    }
+    if (!a->symbol && !b->symbol)
+        return valueOperation(op, a, b, out);
 
     char* opInst;
-    switch (operator) {
+    switch (op) {
     case '+':
         opInst = "ADD";
         break;
@@ -305,24 +307,22 @@ bool objectExpression(char operator, Object * a, Object* b, Object* out) {
     // Two variable
     if (a->symbol && b->symbol) {
         variableInst3(opInst, a, b, out);
-        debugOut(DISPVAR " %c " DISPVAR " => " DISPVAR "", setDISPVAR(a), operator, setDISPVAR(b), setDISPVAR(out));
+        debugOut(DISPVAR " %c " DISPVAR " => " DISPVAR "", setDISPVAR(a), op, setDISPVAR(b), setDISPVAR(out));
         return false;
     }
 
     // Variable and Value
-    if (b->symbol) {
-        Object* swap = a;
-        a = b;
-        b = swap;
-    }
     SymbolData symbol = {getTmpReg(true)};
     Object cacheVar = {OBJECT_TYPE_INT, VAR_FLAG_REG, 0, &symbol};
 
     cacheVar.type = OBJECT_TYPE_INT;
-    codeOut("addi %s, zero, %d", symbol.name, toInt(b->value));
+    codeOut("addi %s, zero, %d", symbol.name, toInt((a->symbol ? b : a)->value));
     debugOutRaw("\n");
-    variableInst3(opInst, a, &cacheVar, out);
-    debugPrintInst(operator, a, b, out);
+    if (a->symbol)
+        variableInst3(opInst, a, &cacheVar, out);
+    else
+        variableInst3(opInst, &cacheVar, b, out);
+    debugPrintInst(op, a, b, out);
 
     // Free cache value if used
     if (out->symbol->name != cacheVar.symbol->name)
@@ -351,20 +351,22 @@ bool objectLes(Object* a, Object* b, Object* out) {
 }
 
 bool objectGtr(Object* a, Object* b, Object* out) {
-    return objectExpression('>', a, b, out);
+    return objectExpression('<', b, a, out);
 }
 
 // +=
 bool objectAddAssign(Object* dest, Object* val) {
     Object cache;
-    if (objectAdd(dest, val, &cache)) return true;
+    if (objectAdd(dest, val, &cache))
+        return true;
     return objectValueAssign(dest, &cache);
 }
 
 // -=
 bool objectSubAssign(Object* dest, Object* val) {
     Object cache;
-    if (objectSub(dest, val, &cache)) return true;
+    if (objectSub(dest, val, &cache))
+        return true;
     return objectValueAssign(dest, &cache);
 }
 
@@ -394,7 +396,8 @@ bool forConditionEnd(Object* result) {
     // result != 0
     codeOut("bne " VAR ", zero, L%d", setVAR(result), offset);
     debugOut("for loop (%d) jump to 'CONTNET'\n", offset);
-    if (isReg(result)) freeTmpReg(result);
+    if (isReg(result))
+        freeTmpReg(result);
     useCacheCodeStream = (indent << 1) - 1;
     cacheCodeStream[useCacheCodeStream] = newStreamStream();
 }

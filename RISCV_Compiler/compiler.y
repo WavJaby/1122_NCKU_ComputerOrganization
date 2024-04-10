@@ -8,21 +8,21 @@
     char* yyInputFileName;
     uint32_t yycolumn;
     extern int yyleng;
+    extern char* yytext;
     
     bool compileError;
     char errorCache[128];
 
-    #define ERROR_PREFIX "%s:%d:%d: error: "
-
     void yyerror(char const *msg) {
         printf(ERROR_PREFIX " %s\n", yyInputFileName, yylineno, yycolumn - yyleng + 1, msg);
+        yytext[strlen(yytext)] = ' ';
+        for(int i = 0; yytext[i]; i++)
+            if (yytext[i] == '\r' || yytext[i] == '\n') {
+                yytext[i] = 0;
+                break;
+            }
+        printf("%6d |%s\n       |%*.s^\n", yylineno, yytext - yycolumn + yyleng, yycolumn - yyleng, "");
         compileError = true;
-    }
-    
-    #define yyerrorf(format, ...) {\
-        printf(ERROR_PREFIX format, yyInputFileName, yylineno, yycolumn - yyleng + 1, ##__VA_ARGS__);\
-        compileError = true;\
-        YYABORT;\
     }
 %}
 

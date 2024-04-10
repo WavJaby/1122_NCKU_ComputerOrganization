@@ -24,6 +24,14 @@ int main()
     "j EL1\n\t"  // for loop (1) jump to 'ENTRY'
     "L1:\n\t"
 // for loop (1) CONTNET
+        "addi t0, zero, 2\n\t"
+        "MUL t0, %[i], t0\n\t"  // i * 2 => _t0
+        "lw t1, -20(s0)\n\t"  // *s0
+        "ADD t0, t0, t1\n\t"  // _t0 + *s0 => _t0
+        "addi t1, zero, 4\n\t"
+        "MUL t0, t0, t1\n\t"  // _t0 * 4 => _t0
+        "ADD t0, %[y], t0\n\t"  // y + _t0 => _t0
+        "mv %[p_y], t0\n\t"  // p_y <= _t0
         "addi t0, zero, 0\n\t"
         "sw t0, -24(s0)\n\t"  // *s0 <= 0
         "j EL2\n\t"  // for loop (2) jump to 'ENTRY'
@@ -46,14 +54,6 @@ int main()
             "MUL t0, t0, t1\n\t"  // _t0 * 4 => _t0
             "ADD t0, %[x], t0\n\t"  // x + _t0 => _t0
             "mv %[p_x], t0\n\t"  // p_x <= _t0
-            "addi t0, zero, 2\n\t"
-            "MUL t0, %[i], t0\n\t"  // i * 2 => _t0
-            "lw t1, -20(s0)\n\t"  // *s0
-            "ADD t0, t0, t1\n\t"  // _t0 + *s0 => _t0
-            "addi t1, zero, 4\n\t"
-            "MUL t0, t0, t1\n\t"  // _t0 * 4 => _t0
-            "ADD t0, %[y], t0\n\t"  // y + _t0 => _t0
-            "mv %[p_y], t0\n\t"  // p_y <= _t0
             "lw t0, 0(%[p_h])\n\t"  // *p_h
             "lw t1, 0(%[p_x])\n\t"  // *p_x
             "MUL t0, t0, t1\n\t"  // *p_h * *p_x => _t0

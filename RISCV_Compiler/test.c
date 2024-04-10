@@ -36,12 +36,12 @@ int main(int i,
          int* h, int* x, int* y) {
     for (i = 0; i < 3; i += 1) {
         for (int j = 0; j < 2; j += 1) {
+            p_y = y + (i * 2 + j) * 4;
             for (int f = 0; f < 3; f += 1) {
                 p_h = h + (i * 3 + f) * 4;
                 p_x = x + (j + f * 2) * 4;
-                p_y = y + (i * 2 + j) * 4;
 
-                *p_y = *p_y + *p_h * *p_x;
+                *p_y w *p_y + *p_h * *p_x;
             }
         }
     }
